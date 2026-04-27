@@ -1,0 +1,1854 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  ArrowRight,
+  Flame,
+  Sparkles,
+  Target,
+  Trophy,
+  Check,
+  Github,
+  Hammer,
+  Zap,
+  Compass,
+  Rocket,
+  Copy,
+  ChevronRight,
+  CircleDot,
+  Lock,
+  User,
+  LogOut,
+  Settings,
+} from "lucide-react";
+
+/* ────────────────────────────────────────────────────────────────────────────
+   FORGE — career copilot for IT-focused high schoolers
+   Single-file demo of the full design system & UX flow.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Global styles, fonts, keyframes ────────────────────────────────────────── */
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:wght@500;600;700;800&display=swap');
+
+    :root {
+      --bg: #08080C;
+      --surface: #131318;
+      --surface-2: #18181F;
+      --primary-from: #FF6B2C;
+      --primary-mid: #FF8A3D;
+      --primary-to: #FFB800;
+      --secondary: #818CF8;
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --text-subtle: #71717A;
+      --border: rgba(255,255,255,0.06);
+      --border-strong: rgba(255,255,255,0.10);
+      --success-from: #34D399;
+      --success-to: #10B981;
+      --danger: #F43F5E;
+    }
+
+    * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    html, body, #root { background: var(--bg); color: var(--text); }
+    body { font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+
+    .font-display { font-family: 'Inter Tight', 'Inter', sans-serif; letter-spacing: -0.04em; }
+    .tabular { font-feature-settings: 'tnum' 1, 'cv11' 1; font-variant-numeric: tabular-nums; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(255,107,44,0.35), rgba(255,184,0,0.35));
+      border-radius: 999px;
+      border: 2px solid var(--bg);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(255,107,44,0.6), rgba(255,184,0,0.6));
+    }
+
+    /* Selection */
+    ::selection { background: rgba(255,138,61,0.3); color: #fff; }
+
+    /* Ambient mesh gradient drift */
+    @keyframes meshDrift {
+      0%, 100% { transform: translate3d(0,0,0) scale(1); }
+      33% { transform: translate3d(2%, -3%, 0) scale(1.05); }
+      66% { transform: translate3d(-2%, 2%, 0) scale(0.97); }
+    }
+    @keyframes meshDrift2 {
+      0%, 100% { transform: translate3d(0,0,0) scale(1); opacity: 0.6; }
+      50% { transform: translate3d(-3%, 4%, 0) scale(1.08); opacity: 0.85; }
+    }
+    @keyframes orbFloat {
+      0%, 100% { transform: translate3d(0,0,0); }
+      50% { transform: translate3d(20px, -30px, 0); }
+    }
+    @keyframes orbFloat2 {
+      0%, 100% { transform: translate3d(0,0,0); }
+      50% { transform: translate3d(-25px, 20px, 0); }
+    }
+
+    /* Pulse glow on CTAs */
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,138,61,0.45), 0 18px 50px -12px rgba(255,107,44,0.45); }
+      50% { box-shadow: 0 0 0 14px rgba(255,138,61,0), 0 22px 60px -10px rgba(255,107,44,0.6); }
+    }
+
+    /* Subtle pulse on hero card border */
+    @keyframes borderPulse {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 1; }
+    }
+
+    /* Number gradient pulse on change */
+    @keyframes numPulse {
+      0% { filter: brightness(1) saturate(1); transform: scale(1); }
+      30% { filter: brightness(1.4) saturate(1.3); transform: scale(1.06); }
+      100% { filter: brightness(1) saturate(1); transform: scale(1); }
+    }
+
+    /* Forging text shimmer */
+    @keyframes shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+
+    /* Mount fade-up */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translate3d(0, 12px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+
+    /* Mount fade only */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Sweep across hero card on complete */
+    @keyframes goldSweep {
+      0% { transform: translateX(-110%) skewX(-12deg); opacity: 0; }
+      30% { opacity: 1; }
+      100% { transform: translateX(110%) skewX(-12deg); opacity: 0; }
+    }
+
+    /* Card slide off on completion */
+    @keyframes slideOff {
+      0% { transform: translate3d(0,0,0); opacity: 1; }
+      100% { transform: translate3d(0, -40px, 0); opacity: 0; filter: blur(8px); }
+    }
+    @keyframes slideIn {
+      0% { transform: translate3d(0, 30px, 0); opacity: 0; filter: blur(8px); }
+      100% { transform: translate3d(0, 0, 0); opacity: 1; filter: blur(0); }
+    }
+
+    /* Skill tree node glow ripple */
+    @keyframes nodeRipple {
+      0% { box-shadow: 0 0 0 0 rgba(255,138,61,0.55); }
+      100% { box-shadow: 0 0 0 18px rgba(255,138,61,0); }
+    }
+
+    /* Words stagger for hero headline */
+    .word-stagger > span {
+      display: inline-block;
+      opacity: 0;
+      transform: translate3d(0, 18px, 0);
+      animation: fadeUp 0.7s cubic-bezier(.2,.8,.2,1) forwards;
+    }
+
+    /* Chip hover */
+    .chip {
+      transition: transform 250ms cubic-bezier(.2,.8,.2,1), background 250ms, border-color 250ms;
+    }
+    .chip:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,138,61,0.35);
+    }
+
+    /* Glassmorphism card with inner top highlight */
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 14%), var(--surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 1px 1px rgba(0,0,0,0.4),
+        0 8px 24px -10px rgba(0,0,0,0.6);
+    }
+    .glass-hover {
+      transition: transform 320ms cubic-bezier(.2,.8,.2,1),
+                  border-color 320ms,
+                  box-shadow 320ms;
+    }
+    .glass-hover:hover {
+      transform: translateY(-4px) scale(1.005);
+      border-color: rgba(255,138,61,0.18);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 1px 1px rgba(0,0,0,0.4),
+        0 30px 60px -20px rgba(255,107,44,0.18),
+        0 0 0 1px rgba(255,138,61,0.08);
+    }
+
+    /* Gradient text */
+    .grad-text {
+      background: linear-gradient(135deg, var(--primary-from) 0%, var(--primary-to) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .grad-text-shimmer {
+      background: linear-gradient(90deg,
+        var(--primary-from) 0%,
+        var(--primary-to) 25%,
+        #fff 50%,
+        var(--primary-to) 75%,
+        var(--primary-from) 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer 3.5s linear infinite;
+    }
+
+    /* Gradient pill button */
+    .btn-primary {
+      position: relative;
+      background: linear-gradient(135deg, var(--primary-from) 0%, var(--primary-to) 100%);
+      color: #1a0c00;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      box-shadow: 0 12px 36px -10px rgba(255,107,44,0.55), inset 0 1px 0 rgba(255,255,255,0.45);
+      transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 44px -8px rgba(255,107,44,0.7), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    .btn-primary:active { transform: translateY(0) scale(0.97); }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      color: var(--text);
+      transition: transform 180ms, background 220ms, border-color 220ms;
+    }
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,138,61,0.25);
+    }
+    .btn-ghost:active { transform: scale(0.97); }
+
+    /* Pulsing border for hero quest card */
+    .hero-quest-border::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 24px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(255,107,44,0.6), rgba(255,184,0,0.4), rgba(129,140,248,0.3), rgba(255,107,44,0.6));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      animation: borderPulse 4.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* Top rule highlight on cards */
+    .top-rule::after {
+      content: '';
+      position: absolute; left: 18px; right: 18px; top: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+      pointer-events: none;
+    }
+
+    /* Animation utility classes */
+    .animate-fade-up { animation: fadeUp 0.7s cubic-bezier(.2,.8,.2,1) both; }
+    .animate-fade-in { animation: fadeIn 0.5s ease both; }
+    .animate-num-pulse { animation: numPulse 0.9s cubic-bezier(.2,.8,.2,1); }
+    .animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
+    .animate-orb-1 { animation: orbFloat 14s ease-in-out infinite; }
+    .animate-orb-2 { animation: orbFloat2 18s ease-in-out infinite; }
+    .animate-mesh-1 { animation: meshDrift 22s ease-in-out infinite; }
+    .animate-mesh-2 { animation: meshDrift2 28s ease-in-out infinite; }
+    .animate-slide-off { animation: slideOff 0.55s cubic-bezier(.55,.05,.65,.05) forwards; }
+    .animate-slide-in { animation: slideIn 0.7s cubic-bezier(.2,.8,.2,1) forwards; }
+    .animate-node-ripple { animation: nodeRipple 1.8s ease-out infinite; }
+
+    /* Gold sweep overlay for completion */
+    .gold-sweep {
+      position: absolute; inset: 0; overflow: hidden; border-radius: 24px; pointer-events: none;
+    }
+    .gold-sweep::before {
+      content: '';
+      position: absolute; top: 0; bottom: 0; width: 60%; left: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,184,0,0.55), rgba(255,107,44,0.55), transparent);
+      animation: goldSweep 0.85s cubic-bezier(.2,.8,.2,1) forwards;
+    }
+
+    /* Focus ring */
+    .focus-ring:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255,138,61,0.55);
+    }
+
+    /* Textarea / input minimal */
+    .input-minimal {
+      background: transparent;
+      color: var(--text);
+      caret-color: var(--primary-from);
+    }
+    .input-minimal::placeholder { color: var(--text-subtle); }
+
+    /* Connector line in skill tree */
+    .connector {
+      background: linear-gradient(180deg, rgba(255,138,61,0.35), rgba(255,255,255,0.04));
+    }
+    .connector-dim {
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* Hide focus outline on mouse, keep for keyboard */
+    button:focus { outline: none; }
+  `}</style>
+);
+
+/* ── Ambient background: mesh gradient + noise + drifting orbs ──────────────── */
+const AmbientBackground = () => (
+  <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    {/* Base */}
+    <div className="absolute inset-0" style={{ background: "var(--bg)" }} />
+
+    {/* Mesh layer 1 — warm amber from upper-center */}
+    <div
+      className="absolute inset-0 animate-mesh-1"
+      style={{
+        background:
+          "radial-gradient(ellipse 70% 55% at 50% 12%, rgba(255,138,61,0.18) 0%, rgba(255,138,61,0.08) 28%, transparent 60%)",
+      }}
+    />
+    {/* Mesh layer 2 — gold, mid-right */}
+    <div
+      className="absolute inset-0 animate-mesh-2"
+      style={{
+        background:
+          "radial-gradient(ellipse 50% 50% at 78% 30%, rgba(255,184,0,0.10) 0%, transparent 55%)",
+      }}
+    />
+    {/* Mesh layer 3 — deep navy corners */}
+    <div
+      className="absolute inset-0"
+      style={{
+        background:
+          "radial-gradient(ellipse 80% 60% at 10% 95%, rgba(10,10,26,0.6) 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 95% 100%, rgba(20,15,40,0.5) 0%, transparent 60%)",
+      }}
+    />
+    {/* Indigo accent glow */}
+    <div
+      className="absolute inset-0 animate-mesh-2"
+      style={{
+        background:
+          "radial-gradient(ellipse 40% 40% at 15% 75%, rgba(129,140,248,0.07) 0%, transparent 60%)",
+      }}
+    />
+
+    {/* Floating orbs */}
+    <div
+      className="absolute animate-orb-1"
+      style={{
+        width: 520,
+        height: 520,
+        top: "10%",
+        left: "-8%",
+        background:
+          "radial-gradient(circle, rgba(255,107,44,0.10) 0%, transparent 65%)",
+        filter: "blur(40px)",
+      }}
+    />
+    <div
+      className="absolute animate-orb-2"
+      style={{
+        width: 420,
+        height: 420,
+        bottom: "5%",
+        right: "-6%",
+        background:
+          "radial-gradient(circle, rgba(255,184,0,0.08) 0%, transparent 65%)",
+        filter: "blur(40px)",
+      }}
+    />
+
+    {/* Noise / film grain — inline SVG */}
+    <svg
+      className="absolute inset-0 w-full h-full"
+      style={{ opacity: 0.025, mixBlendMode: "overlay" }}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <filter id="grainFilter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#grainFilter)" />
+    </svg>
+
+    {/* Vignette */}
+    <div
+      className="absolute inset-0"
+      style={{
+        background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%)",
+      }}
+    />
+  </div>
+);
+
+/* ── Tiny visual helpers ────────────────────────────────────────────────────── */
+const GradientIcon = ({ Icon, size = 18 }) => (
+  <span
+    className="inline-flex items-center justify-center rounded-xl"
+    style={{
+      width: size + 18,
+      height: size + 18,
+      background: "linear-gradient(135deg, rgba(255,107,44,0.18), rgba(255,184,0,0.10))",
+      border: "1px solid rgba(255,138,61,0.20)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px -8px rgba(255,107,44,0.4)",
+    }}
+  >
+    <Icon size={size} style={{ color: "#FFC169" }} strokeWidth={2.2} />
+  </span>
+);
+
+const PrimaryButton = ({ children, onClick, large = false, className = "", glow = false, type = "button" }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    className={`btn-primary focus-ring rounded-full inline-flex items-center justify-center gap-2 ${large ? "px-7 py-4 text-base" : "px-5 py-3 text-sm"} ${glow ? "animate-glow-pulse" : ""} ${className}`}
+  >
+    {children}
+  </button>
+);
+
+const GhostButton = ({ children, onClick, className = "" }) => (
+  <button
+    onClick={onClick}
+    className={`btn-ghost focus-ring rounded-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm ${className}`}
+  >
+    {children}
+  </button>
+);
+
+/* ── Animated number count-up ───────────────────────────────────────────────── */
+const useCountUp = (target, duration = 900) => {
+  const [val, setVal] = useState(target);
+  const fromRef = useRef(target);
+  const rafRef = useRef();
+  useEffect(() => {
+    const from = fromRef.current;
+    if (from === target) return;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      // easeOutCubic
+      const e = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(from + (target - from) * e));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      else fromRef.current = target;
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target, duration]);
+  return val;
+};
+
+/* ── Confetti — pure-canvas warm-gradient particle burst ────────────────────── */
+const Confetti = ({ trigger }) => {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!trigger) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const resize = () => {
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const W = () => canvas.width;
+    const H = () => canvas.height;
+    const cx = W() / 2;
+    const cy = H() * 0.42;
+
+    const colors = ["#FF6B2C", "#FF8A3D", "#FFB800", "#FFD166", "#FFF1B8"];
+    const particles = [];
+    const count = 140;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const speed = 4 + Math.random() * 9;
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed * dpr,
+        vy: Math.sin(angle) * speed * dpr - 4 * dpr,
+        size: (3 + Math.random() * 5) * dpr,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 1,
+        shape: Math.random() > 0.5 ? "rect" : "circ",
+      });
+    }
+
+    let raf;
+    const gravity = 0.18 * dpr;
+    const drag = 0.992;
+    const draw = () => {
+      ctx.clearRect(0, 0, W(), H());
+      let alive = 0;
+      for (const p of particles) {
+        if (p.life <= 0) continue;
+        alive++;
+        p.vy += gravity;
+        p.vx *= drag;
+        p.vy *= drag;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vr;
+        p.life -= 0.012;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        if (p.shape === "rect") {
+          ctx.fillRect(-p.size, -p.size * 0.4, p.size * 2, p.size * 0.8);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      if (alive > 0) raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+      ctx.clearRect(0, 0, W(), H());
+    };
+  }, [trigger]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-50"
+      style={{ width: "100vw", height: "100vh" }}
+    />
+  );
+};
+
+/* ── Mock data ──────────────────────────────────────────────────────────────── */
+const MOCK_ROADMAP = [
+  { week: 1, title: "Set the foundation", task: "Install your dev stack and ship a 'hello world' to GitHub", xp: 80, status: "done" },
+  { week: 2, title: "Your first real project", task: "Build a personal landing page with your top 3 projects", xp: 150, status: "current" },
+  { week: 3, title: "Version control fluency", task: "Learn branching, PRs, and contribute to one OSS issue", xp: 180, status: "future" },
+  { week: 4, title: "Frontend foundations", task: "Build a responsive React component library", xp: 200, status: "future" },
+  { week: 5, title: "API thinking", task: "Wire your project to a public API and ship it", xp: 220, status: "future" },
+  { week: 6, title: "Database basics", task: "Persist user data with Postgres + a simple CRUD app", xp: 240, status: "future" },
+  { week: 7, title: "Auth & deployment", task: "Add Google login and deploy to Vercel", xp: 260, status: "future" },
+  { week: 8, title: "Build in public", task: "Post a build log and ship a tiny tool publicly", xp: 280, status: "future" },
+  { week: 9, title: "Internship outreach", task: "Send 10 tailored cold emails to startups", xp: 300, status: "future" },
+  { week: 10, title: "Interview reps", task: "Complete 5 mock technical interviews", xp: 320, status: "future" },
+  { week: 11, title: "Polish your story", task: "Refine resume + portfolio with your top 5 wins", xp: 340, status: "future" },
+  { week: 12, title: "Convert", task: "Apply to 8 college programs and 6 internships", xp: 400, status: "future" },
+];
+
+const MOCK_RECENT_WINS = [
+  { title: "Shipped your first PR to GitHub", xp: 50, when: "yesterday" },
+  { title: "Set up your dev stack end-to-end", xp: 30, when: "2 days ago" },
+  { title: "Wrote your first README", xp: 20, when: "3 days ago" },
+];
+
+const EXAMPLE_GOALS = [
+  "Get into Cornell Tech",
+  "Land a startup internship",
+  "Become a self-taught designer",
+];
+
+/* ── Landing page ───────────────────────────────────────────────────────────── */
+const Navbar = ({ onCta, scrolled }) => (
+  <nav
+    className="fixed top-0 left-0 right-0 z-40 transition-all duration-300"
+    style={{
+      backdropFilter: scrolled ? "blur(20px)" : "blur(8px)",
+      background: scrolled ? "rgba(8,8,12,0.65)" : "rgba(8,8,12,0.25)",
+      borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+    }}
+  >
+    <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{
+            background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+            boxShadow: "0 6px 18px -6px rgba(255,107,44,0.6)",
+          }}
+        >
+          <Hammer size={16} style={{ color: "#1a0c00" }} strokeWidth={2.5} />
+        </div>
+        <span className="font-display font-semibold text-lg tracking-tight">Forge</span>
+      </div>
+      <div className="hidden md:flex items-center gap-8 text-sm" style={{ color: "var(--text-muted)" }}>
+        <a className="hover:text-white transition-colors" href="#features">Features</a>
+        <a className="hover:text-white transition-colors" href="#how">How it works</a>
+        <a className="hover:text-white transition-colors" href="#pricing">Students</a>
+      </div>
+      <PrimaryButton onClick={onCta}>
+        Start your forge <ArrowRight size={15} strokeWidth={2.5} />
+      </PrimaryButton>
+    </div>
+  </nav>
+);
+
+const HeroHeadline = () => {
+  const words = "Build the version of you that colleges want to meet.".split(" ");
+  return (
+    <h1
+      className="font-display font-semibold word-stagger"
+      style={{
+        fontSize: "clamp(44px, 8vw, 104px)",
+        lineHeight: 0.98,
+        letterSpacing: "-0.045em",
+      }}
+    >
+      {words.map((w, i) => {
+        // Highlight 'colleges want to meet.' in gradient
+        const highlight = i >= 5;
+        return (
+          <span
+            key={i}
+            className={highlight ? "grad-text" : ""}
+            style={{
+              animationDelay: `${0.08 * i + 0.2}s`,
+              marginRight: 14,
+            }}
+          >
+            {w}
+          </span>
+        );
+      })}
+    </h1>
+  );
+};
+
+const FeatureCard = ({ Icon, title, body, delay, accent }) => (
+  <div
+    className="glass glass-hover relative rounded-2xl p-7 top-rule"
+    style={{ animation: `fadeUp 0.8s cubic-bezier(.2,.8,.2,1) ${delay}s both` }}
+  >
+    <div className="mb-5">
+      <span
+        className="inline-flex items-center justify-center w-11 h-11 rounded-xl"
+        style={{
+          background: accent,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 22px -8px rgba(255,107,44,0.35)",
+        }}
+      >
+        <Icon size={20} style={{ color: "#1a0c00" }} strokeWidth={2.4} />
+      </span>
+    </div>
+    <h3 className="font-display text-xl font-semibold mb-2 tracking-tight">{title}</h3>
+    <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+      {body}
+    </p>
+  </div>
+);
+
+const Landing = ({ onStart }) => {
+  const [scrolled, setScrolled] = useState(false);
+  const heroRef = useRef(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const onMouseMove = (e) => {
+    const r = heroRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const x = ((e.clientX - r.left) / r.width - 0.5) * 4;
+    const y = ((e.clientY - r.top) / r.height - 0.5) * 4;
+    setTilt({ x, y });
+  };
+
+  return (
+    <div className="min-h-screen">
+      <Navbar onCta={onStart} scrolled={scrolled} />
+
+      {/* Hero */}
+      <section
+        ref={heroRef}
+        onMouseMove={onMouseMove}
+        className="relative pt-40 pb-24 px-6"
+      >
+        <div className="max-w-6xl mx-auto text-center">
+          {/* Eyebrow */}
+          <div
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 animate-fade-in"
+            style={{
+              background: "rgba(255,138,61,0.06)",
+              border: "1px solid rgba(255,138,61,0.18)",
+              animationDelay: "0.05s",
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary-mid)", boxShadow: "0 0 12px rgba(255,138,61,0.8)" }} />
+            <span className="text-xs font-medium tracking-wide" style={{ color: "#FFC169" }}>
+              Built for high schoolers in tech
+            </span>
+          </div>
+
+          <HeroHeadline />
+
+          <p
+            className="mt-8 max-w-2xl mx-auto text-lg animate-fade-up"
+            style={{ color: "var(--text-muted)", animationDelay: "0.9s", animationFillMode: "both" }}
+          >
+            Forge turns your goal into a 90-day system. AI-powered roadmaps, a portfolio that
+            writes itself, and the discipline of a streak. Built for high schoolers.
+          </p>
+
+          <div
+            className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-up"
+            style={{ animationDelay: "1.05s", animationFillMode: "both" }}
+          >
+            <div
+              style={{
+                transform: `translate3d(${tilt.x}px, ${tilt.y}px, 0)`,
+                transition: "transform 250ms cubic-bezier(.2,.8,.2,1)",
+              }}
+            >
+              <PrimaryButton large glow onClick={onStart}>
+                Start your forge <ArrowRight size={17} strokeWidth={2.5} />
+              </PrimaryButton>
+            </div>
+            <GhostButton onClick={() => {}}>
+              <span>See a sample roadmap</span>
+            </GhostButton>
+          </div>
+
+          <p
+            className="mt-6 text-xs animate-fade-in"
+            style={{ color: "var(--text-subtle)", animationDelay: "1.3s", animationFillMode: "both" }}
+          >
+            Free for students · No credit card · 90 days, one goal
+          </p>
+        </div>
+
+        {/* Soft halo */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 -z-10 pointer-events-none"
+          style={{
+            top: "30%",
+            width: 700,
+            height: 700,
+            background: "radial-gradient(circle, rgba(255,107,44,0.18) 0%, transparent 60%)",
+            filter: "blur(20px)",
+          }}
+        />
+      </section>
+
+      {/* Features */}
+      <section id="features" className="px-6 pb-32">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <FeatureCard
+              Icon={Compass}
+              title="Your roadmap, in 30 seconds"
+              body="Tell Forge your goal. Get a 12-week plan with weekly quests calibrated to where you are right now."
+              delay={1.2}
+              accent="linear-gradient(135deg, #FF6B2C, #FFB800)"
+            />
+            <FeatureCard
+              Icon={Sparkles}
+              title="Portfolio that writes itself"
+              body="Paste a GitHub URL. Forge turns your README into a sharp, recruiter-ready bullet you can drop into your resume."
+              delay={1.32}
+              accent="linear-gradient(135deg, #FFB800, #FF8A3D)"
+            />
+            <FeatureCard
+              Icon={Flame}
+              title="A streak that means something"
+              body="Show up daily. Watch your XP, level, and skill tree compound. Real progress, not vanity metrics."
+              delay={1.44}
+              accent="linear-gradient(135deg, #FF8A3D, #FFC169)"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Footer rule */}
+      <div
+        className="mx-auto max-w-7xl px-6 py-10 text-xs flex items-center justify-between"
+        style={{ color: "var(--text-subtle)", borderTop: "1px solid var(--border)" }}
+      >
+        <span>Forge · Made for builders, in the open</span>
+        <span>v0.1 · demo</span>
+      </div>
+    </div>
+  );
+};
+
+/* ── Onboarding ─────────────────────────────────────────────────────────────── */
+const Onboarding = ({ onSubmit }) => {
+  const [goal, setGoal] = useState("");
+  const taRef = useRef(null);
+
+  useEffect(() => {
+    taRef.current?.focus();
+  }, []);
+
+  const submit = () => {
+    if (!goal.trim()) return;
+    onSubmit(goal.trim());
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6 py-20">
+      <div className="w-full max-w-2xl animate-fade-up">
+        <div className="text-center mb-10">
+          <div className="inline-flex mb-5">
+            <GradientIcon Icon={Target} size={20} />
+          </div>
+          <h1
+            className="font-display font-semibold tracking-tight mb-3"
+            style={{ fontSize: "clamp(32px, 4.5vw, 48px)", lineHeight: 1.05 }}
+          >
+            What are you forging?
+          </h1>
+          <p style={{ color: "var(--text-muted)" }} className="text-base max-w-md mx-auto">
+            One goal. Be specific. Forge will turn it into a 90-day system.
+          </p>
+        </div>
+
+        <div className="glass top-rule rounded-3xl p-6 md:p-8 relative">
+          <textarea
+            ref={taRef}
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+            }}
+            placeholder="e.g. Get into Cornell Tech with a strong CS portfolio by next fall"
+            className="input-minimal w-full resize-none text-lg leading-relaxed focus:outline-none"
+            style={{ minHeight: 110, fontFamily: "inherit" }}
+            rows={3}
+          />
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+              ⌘ + Enter to submit
+            </span>
+            <PrimaryButton onClick={submit}>
+              Forge my roadmap <ArrowRight size={15} strokeWidth={2.5} />
+            </PrimaryButton>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-subtle)", letterSpacing: "0.18em" }}>
+            Or start from
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            {EXAMPLE_GOALS.map((g) => (
+              <button
+                key={g}
+                onClick={() => setGoal(g)}
+                className="chip rounded-full px-4 py-2 text-sm focus-ring"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Forging loader ─────────────────────────────────────────────────────────── */
+const ForgingLoader = ({ goal, onDone }) => {
+  const phases = [
+    "Analyzing your goal",
+    "Mapping skills you'll need",
+    "Calibrating to week 1",
+    "Forging your 12-week plan",
+  ];
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 700);
+    const t2 = setTimeout(() => setPhase(2), 1500);
+    const t3 = setTimeout(() => setPhase(3), 2300);
+    const done = setTimeout(() => onDone(), 3300);
+    return () => [t1, t2, t3, done].forEach(clearTimeout);
+  }, [onDone]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6">
+      <div className="text-center max-w-xl">
+        {/* Pulsing forge icon */}
+        <div className="relative inline-flex items-center justify-center mb-10">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(255,107,44,0.5) 0%, transparent 65%)",
+              filter: "blur(20px)",
+              animation: "glowPulse 2s ease-in-out infinite",
+            }}
+          />
+          <div
+            className="relative w-20 h-20 rounded-2xl flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), 0 18px 50px -10px rgba(255,107,44,0.6)",
+            }}
+          >
+            <Hammer size={36} style={{ color: "#1a0c00" }} strokeWidth={2.4} />
+          </div>
+        </div>
+
+        <h2
+          className="font-display font-semibold tracking-tight mb-3"
+          style={{ fontSize: "clamp(28px, 4vw, 40px)" }}
+        >
+          <span className="grad-text-shimmer">Forging your roadmap…</span>
+        </h2>
+        <p style={{ color: "var(--text-muted)" }} className="text-base mb-10 italic">
+          “{goal}”
+        </p>
+
+        <div className="space-y-2.5 max-w-sm mx-auto">
+          {phases.map((p, i) => (
+            <div
+              key={p}
+              className="flex items-center gap-3 text-sm transition-all duration-500"
+              style={{ opacity: i <= phase ? 1 : 0.3 }}
+            >
+              <span className="flex items-center justify-center w-5 h-5">
+                {i < phase ? (
+                  <Check size={14} style={{ color: "#FFC169" }} strokeWidth={3} />
+                ) : i === phase ? (
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: "var(--primary-mid)",
+                      boxShadow: "0 0 10px rgba(255,138,61,0.8)",
+                      animation: "glowPulse 1.5s ease-in-out infinite",
+                    }}
+                  />
+                ) : (
+                  <CircleDot size={12} style={{ color: "var(--text-subtle)" }} />
+                )}
+              </span>
+              <span style={{ color: i <= phase ? "var(--text)" : "var(--text-subtle)" }}>{p}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Dashboard top bar ──────────────────────────────────────────────────────── */
+const TopBar = ({ xp, level, streak, onNav, onProfile }) => {
+  const [open, setOpen] = useState(false);
+  const xpDisplay = useCountUp(xp);
+  const levelDisplay = useCountUp(level);
+  const streakDisplay = useCountUp(streak);
+
+  return (
+    <div
+      className="sticky top-0 z-30"
+      style={{
+        backdropFilter: "blur(20px)",
+        background: "rgba(8,8,12,0.7)",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
+        {/* Logo */}
+        <button onClick={() => onNav("dashboard")} className="flex items-center gap-2.5 focus-ring rounded-lg">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))" }}
+          >
+            <Hammer size={15} style={{ color: "#1a0c00" }} strokeWidth={2.6} />
+          </div>
+          <span className="font-display font-semibold tracking-tight">Forge</span>
+        </button>
+
+        {/* Routes */}
+        <div className="hidden md:flex items-center gap-1">
+          {[
+            { id: "dashboard", label: "Dashboard" },
+            { id: "roadmap", label: "Roadmap" },
+            { id: "portfolio", label: "Portfolio" },
+          ].map((r) => (
+            <button
+              key={r.id}
+              onClick={() => onNav(r.id)}
+              className="px-3.5 py-1.5 rounded-full text-sm transition-colors hover:text-white focus-ring"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats cluster + profile */}
+        <div className="flex items-center gap-2">
+          <div
+            className="hidden sm:flex items-center gap-3 px-3.5 py-1.5 rounded-full text-sm tabular"
+            style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
+          >
+            <span className="flex items-center gap-1.5" title="XP">
+              <Zap size={13} style={{ color: "#FFC169" }} strokeWidth={2.4} />
+              <span className="font-medium">{xpDisplay}</span>
+              <span style={{ color: "var(--text-subtle)" }}>XP</span>
+            </span>
+            <span className="w-px h-3" style={{ background: "var(--border-strong)" }} />
+            <span className="flex items-center gap-1.5" title="Streak">
+              <Flame size={13} style={{ color: "#FF8A3D" }} strokeWidth={2.4} />
+              <span className="font-medium">{streakDisplay}</span>
+            </span>
+            <span className="w-px h-3" style={{ background: "var(--border-strong)" }} />
+            <span className="flex items-center gap-1.5" title="Level">
+              <Trophy size={13} style={{ color: "#FFC169" }} strokeWidth={2.4} />
+              <span style={{ color: "var(--text-subtle)" }}>Lv</span>
+              <span className="font-medium">{levelDisplay}</span>
+            </span>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className="w-9 h-9 rounded-full focus-ring flex items-center justify-center font-medium text-sm"
+              style={{
+                background: "linear-gradient(135deg, #2a1a08, #1a1424)",
+                border: "1px solid var(--border-strong)",
+                color: "#FFC169",
+              }}
+            >
+              JD
+            </button>
+            {open && (
+              <div
+                className="absolute right-0 mt-2 w-56 rounded-xl glass top-rule overflow-hidden animate-fade-up"
+                style={{ animationDuration: "0.25s" }}
+              >
+                <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div className="text-sm font-medium">Jamie Doe</div>
+                  <div className="text-xs" style={{ color: "var(--text-subtle)" }}>jamie@students.edu</div>
+                </div>
+                <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5" onClick={() => { setOpen(false); onProfile(); }}>
+                  <User size={14} /> Profile
+                </button>
+                <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5">
+                  <Settings size={14} /> Settings
+                </button>
+                <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5" style={{ color: "var(--danger)" }}>
+                  <LogOut size={14} /> Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Today's Quest hero card ───────────────────────────────────────────────── */
+const TodaysQuest = ({ task, onComplete, sweep, exiting, entering }) => {
+  if (!task) {
+    return (
+      <div className="glass top-rule rounded-3xl p-10 flex flex-col items-center justify-center text-center min-h-[420px]">
+        <GradientIcon Icon={Trophy} size={22} />
+        <h3 className="font-display text-2xl font-semibold mt-5 mb-2 tracking-tight">12 weeks. Done.</h3>
+        <p className="max-w-sm" style={{ color: "var(--text-muted)" }}>
+          You've completed every quest in your roadmap. Time to set a new goal — or apply.
+        </p>
+        <PrimaryButton onClick={() => {}} className="mt-6">
+          Set a new goal <ArrowRight size={15} strokeWidth={2.5} />
+        </PrimaryButton>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative glass hero-quest-border rounded-3xl p-7 md:p-10 overflow-hidden ${exiting ? "animate-slide-off" : ""} ${entering ? "animate-slide-in" : ""}`}
+    >
+      {sweep && <div className="gold-sweep" />}
+
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <span
+            className="text-[11px] font-semibold tracking-widest uppercase px-2.5 py-1 rounded-full"
+            style={{
+              background: "rgba(255,138,61,0.12)",
+              border: "1px solid rgba(255,138,61,0.25)",
+              color: "#FFC169",
+              letterSpacing: "0.18em",
+            }}
+          >
+            Today's Quest
+          </span>
+          <span className="text-xs flex items-center gap-1.5" style={{ color: "var(--text-subtle)" }}>
+            <CircleDot size={10} /> Week {task.week} · {task.title}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-end gap-8">
+        <div className="flex-1">
+          <h2
+            className="font-display font-semibold tracking-tight mb-3"
+            style={{ fontSize: "clamp(26px, 3.2vw, 38px)", lineHeight: 1.1 }}
+          >
+            {task.task}
+          </h2>
+          <div className="flex items-center gap-4 text-sm" style={{ color: "var(--text-muted)" }}>
+            <span className="flex items-center gap-1.5">
+              <Target size={13} /> ~ 90 min
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Sparkles size={13} /> Project work
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Rocket size={13} /> Compounds week 3+
+            </span>
+          </div>
+        </div>
+
+        <div className="text-right shrink-0">
+          <div
+            className="font-display font-semibold tabular grad-text"
+            style={{ fontSize: "clamp(48px, 6vw, 72px)", lineHeight: 1, letterSpacing: "-0.04em" }}
+          >
+            +{task.xp}
+          </div>
+          <div className="text-xs uppercase tracking-widest mt-1" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+            XP
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <p className="text-sm max-w-md" style={{ color: "var(--text-muted)" }}>
+          Don't perfect it. Ship it. You can always sharpen it next week.
+        </p>
+        <PrimaryButton large glow onClick={onComplete}>
+          Complete quest <ArrowRight size={16} strokeWidth={2.5} />
+        </PrimaryButton>
+      </div>
+    </div>
+  );
+};
+
+/* ── Stats card ─────────────────────────────────────────────────────────────── */
+const StatsCard = ({ xp, xpToNext, level, streak }) => {
+  const xpDisplay = useCountUp(xp);
+  const pct = Math.min(100, Math.round((xp / xpToNext) * 100));
+  return (
+    <div className="glass top-rule rounded-3xl p-7 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+          Level
+        </span>
+        <Trophy size={15} style={{ color: "#FFC169" }} />
+      </div>
+      <div
+        className="font-display font-semibold tabular grad-text"
+        style={{ fontSize: "clamp(48px, 5.5vw, 72px)", lineHeight: 1, letterSpacing: "-0.04em" }}
+      >
+        {level}
+      </div>
+
+      <div className="mt-6">
+        <div className="flex items-baseline justify-between mb-2">
+          <span className="text-xs tabular" style={{ color: "var(--text-muted)" }}>
+            <span className="text-white font-medium">{xpDisplay}</span> / {xpToNext} XP
+          </span>
+          <span className="text-xs tabular" style={{ color: "var(--text-subtle)" }}>{pct}%</span>
+        </div>
+        <div
+          className="relative h-2 rounded-full overflow-hidden"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)" }}
+        >
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{
+              width: `${pct}%`,
+              background: "linear-gradient(90deg, var(--primary-from), var(--primary-to))",
+              boxShadow: "0 0 12px rgba(255,138,61,0.6), inset 0 1px 0 rgba(255,255,255,0.4)",
+              transition: "width 800ms cubic-bezier(.2,.8,.2,1)",
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="mt-auto pt-6 flex items-center justify-between"
+        style={{ borderTop: "1px solid var(--border)", marginTop: 24 }}
+      >
+        <div>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--text-subtle)", letterSpacing: "0.18em" }}>
+            Streak
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-display font-semibold tabular text-3xl">{streak}</span>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>days</span>
+          </div>
+        </div>
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center"
+          style={{
+            background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.3), rgba(255,107,44,0.05))",
+            border: "1px solid rgba(255,138,61,0.25)",
+          }}
+        >
+          <Flame size={22} style={{ color: "#FF8A3D" }} strokeWidth={2.2} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Skill tree ─────────────────────────────────────────────────────────────── */
+const SkillTree = ({ weeks, currentWeek }) => {
+  return (
+    <div className="glass top-rule rounded-3xl p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-display text-base font-semibold tracking-tight">Skill tree</h3>
+        <span className="text-xs" style={{ color: "var(--text-subtle)" }}>12 weeks</span>
+      </div>
+
+      <div
+        className="relative flex-1 overflow-y-auto pr-1"
+        style={{ maxHeight: 540 }}
+      >
+        <ul className="relative">
+          {weeks.map((w, i) => {
+            const isDone = w.status === "done";
+            const isCurrent = w.status === "current" || (w.week === currentWeek && !isDone);
+            const isFuture = !isDone && !isCurrent;
+            const isLast = i === weeks.length - 1;
+            return (
+              <li key={w.week} className="relative flex gap-3 pb-4 last:pb-0">
+                {/* Connector */}
+                {!isLast && (
+                  <span
+                    className={`absolute left-[14px] top-8 bottom-0 w-px ${isDone ? "" : "connector-dim"}`}
+                    style={
+                      isDone
+                        ? { background: "linear-gradient(180deg, rgba(255,184,0,0.5), rgba(255,138,61,0.25))" }
+                        : undefined
+                    }
+                  />
+                )}
+                {/* Node */}
+                <span
+                  className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold tabular shrink-0 ${
+                    isCurrent ? "animate-node-ripple" : ""
+                  }`}
+                  style={
+                    isDone
+                      ? {
+                          background: "linear-gradient(135deg, rgba(255,184,0,0.3), rgba(255,107,44,0.2))",
+                          border: "1px solid rgba(255,184,0,0.4)",
+                          color: "#FFD166",
+                          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)",
+                        }
+                      : isCurrent
+                      ? {
+                          background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                          color: "#1a0c00",
+                          boxShadow: "0 0 0 3px rgba(255,138,61,0.18), 0 8px 22px -6px rgba(255,107,44,0.6)",
+                          transform: "scale(1.08)",
+                        }
+                      : {
+                          background: "rgba(255,255,255,0.025)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-subtle)",
+                        }
+                  }
+                >
+                  {isDone ? <Check size={13} strokeWidth={3} /> : w.week}
+                </span>
+                {/* Content */}
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className="text-[10px] uppercase tracking-widest"
+                      style={{
+                        color: isDone ? "#FFC169" : isCurrent ? "#FFC169" : "var(--text-subtle)",
+                        letterSpacing: "0.18em",
+                      }}
+                    >
+                      Week {w.week}
+                    </span>
+                    {isCurrent && (
+                      <span className="text-[10px] font-medium" style={{ color: "var(--primary-mid)" }}>
+                        · Now
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className={`text-[13px] leading-snug ${isFuture ? "" : "font-medium"}`}
+                    style={{ color: isFuture ? "var(--text-subtle)" : "var(--text)" }}
+                  >
+                    {w.title}
+                  </div>
+                </div>
+                {isFuture && <Lock size={11} style={{ color: "var(--text-subtle)" }} className="mt-1.5 shrink-0" />}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+/* ── Recent wins ────────────────────────────────────────────────────────────── */
+const RecentWins = ({ wins }) => (
+  <div className="glass top-rule rounded-3xl p-6 h-full flex flex-col">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="font-display text-base font-semibold tracking-tight">Recent wins</h3>
+      <span
+        className="text-xs px-2 py-0.5 rounded-full tabular"
+        style={{ background: "rgba(255,138,61,0.1)", color: "#FFC169" }}
+      >
+        +{wins.reduce((a, w) => a + w.xp, 0)} XP this week
+      </span>
+    </div>
+    <ul className="flex-1 flex flex-col gap-2.5">
+      {wins.map((w, i) => (
+        <li
+          key={i}
+          className="flex items-center gap-3 p-3 rounded-2xl transition-all"
+          style={{
+            background: "rgba(255,255,255,0.015)",
+            border: "1px solid var(--border)",
+            animation: `slideIn 0.55s cubic-bezier(.2,.8,.2,1) ${i * 0.08}s both`,
+          }}
+        >
+          <span
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              background: "linear-gradient(135deg, rgba(52,211,153,0.18), rgba(16,185,129,0.08))",
+              border: "1px solid rgba(52,211,153,0.25)",
+            }}
+          >
+            <Check size={15} style={{ color: "#34D399" }} strokeWidth={2.6} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium truncate">{w.title}</div>
+            <div className="text-xs" style={{ color: "var(--text-subtle)" }}>{w.when}</div>
+          </div>
+          <div className="text-sm font-semibold tabular" style={{ color: "#FFC169" }}>
+            +{w.xp}
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+/* ── Dashboard ──────────────────────────────────────────────────────────────── */
+const Dashboard = ({ state, dispatch, onNav }) => {
+  const [exiting, setExiting] = useState(false);
+  const [entering, setEntering] = useState(false);
+  const [sweep, setSweep] = useState(false);
+  const [confetti, setConfetti] = useState(0);
+
+  const currentTask = useMemo(
+    () => state.roadmap.find((w) => w.status === "current"),
+    [state.roadmap]
+  );
+
+  const completeQuest = () => {
+    if (!currentTask) return;
+    setSweep(true);
+    setConfetti((n) => n + 1);
+    // After sweep, slide off, advance state, slide in new task
+    setTimeout(() => {
+      setExiting(true);
+    }, 450);
+    setTimeout(() => {
+      dispatch({ type: "complete", xp: currentTask.xp, week: currentTask.week });
+      setExiting(false);
+      setSweep(false);
+      setEntering(true);
+    }, 1000);
+    setTimeout(() => setEntering(false), 1700);
+  };
+
+  return (
+    <div>
+      <Confetti trigger={confetti} />
+      <TopBar
+        xp={state.xp}
+        level={state.level}
+        streak={state.streak}
+        onNav={onNav}
+        onProfile={() => {}}
+      />
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Greeting */}
+        <div
+          className="mb-8 animate-fade-up"
+          style={{ animationDelay: "0.05s", animationFillMode: "both" }}
+        >
+          <h1 className="font-display font-semibold tracking-tight" style={{ fontSize: "clamp(24px, 3vw, 34px)", lineHeight: 1.1 }}>
+            Welcome back, <span className="grad-text">Jamie</span>.
+          </h1>
+          <p className="text-sm mt-1.5" style={{ color: "var(--text-muted)" }}>
+            You're on a {state.streak}-day streak. One quest today, and you keep it alive.
+          </p>
+        </div>
+
+        {/* Bento grid: 12 cols × 3 rows */}
+        <div
+          className="grid grid-cols-1 lg:grid-cols-12 gap-4"
+          style={{ gridAutoRows: "minmax(0, auto)" }}
+        >
+          {/* Hero quest — col-span-8, row-span-2 */}
+          <div
+            className="lg:col-span-8 lg:row-span-2"
+            style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.12s both" }}
+          >
+            <TodaysQuest
+              task={currentTask}
+              onComplete={completeQuest}
+              sweep={sweep}
+              exiting={exiting}
+              entering={entering}
+            />
+          </div>
+
+          {/* Stats — col-span-4 */}
+          <div
+            className="lg:col-span-4"
+            style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.20s both" }}
+          >
+            <StatsCard
+              xp={state.xp}
+              xpToNext={state.xpToNext}
+              level={state.level}
+              streak={state.streak}
+            />
+          </div>
+
+          {/* Skill tree — col-span-4, row-span-2 */}
+          <div
+            className="lg:col-span-4 lg:row-span-2"
+            style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.28s both" }}
+          >
+            <SkillTree weeks={state.roadmap} currentWeek={state.currentWeek} />
+          </div>
+
+          {/* Recent wins — col-span-8 (under hero quest) */}
+          <div
+            className="lg:col-span-8"
+            style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.36s both" }}
+          >
+            <RecentWins wins={state.wins} />
+          </div>
+        </div>
+
+        {/* Quick links */}
+        <div
+          className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4"
+          style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.5s both" }}
+        >
+          <button
+            onClick={() => onNav("portfolio")}
+            className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
+          >
+            <GradientIcon Icon={Github} size={20} />
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-base font-semibold tracking-tight">Portfolio generator</div>
+              <div className="text-sm" style={{ color: "var(--text-muted)" }}>Turn a GitHub repo into a recruiter-ready bullet</div>
+            </div>
+            <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
+          </button>
+          <button
+            onClick={() => onNav("roadmap")}
+            className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
+          >
+            <GradientIcon Icon={Compass} size={20} />
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-base font-semibold tracking-tight">Full roadmap</div>
+              <div className="text-sm" style={{ color: "var(--text-muted)" }}>See all 12 weeks and what's coming</div>
+            </div>
+            <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+/* ── Portfolio generator ───────────────────────────────────────────────────── */
+const Portfolio = ({ onNav, state }) => {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [bullet, setBullet] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const generate = () => {
+    if (!url.trim()) return;
+    setLoading(true);
+    setBullet("");
+    // Mock AI delay
+    setTimeout(() => {
+      setBullet(
+        "Built and shipped a full-stack productivity app in 3 weeks using React, Node.js, and Postgres — including OAuth login, real-time sync via WebSockets, and a deploy pipeline on Vercel. Drove 200+ users in the first month through a public build log on Twitter."
+      );
+      setLoading(false);
+    }, 1600);
+  };
+
+  const copy = () => {
+    navigator.clipboard?.writeText(bullet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div>
+      <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+      <main className="max-w-4xl mx-auto px-6 py-12">
+        <div className="mb-10 animate-fade-up">
+          <div className="inline-flex mb-4">
+            <GradientIcon Icon={Github} size={20} />
+          </div>
+          <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: "clamp(32px, 4vw, 44px)", lineHeight: 1.05 }}>
+            Portfolio generator
+          </h1>
+          <p style={{ color: "var(--text-muted)" }} className="max-w-xl">
+            Paste a GitHub repo URL. Forge reads your README and turns it into a sharp,
+            recruiter-ready resume bullet.
+          </p>
+        </div>
+
+        <div className="glass top-rule rounded-3xl p-6 md:p-7 animate-fade-up" style={{ animationDelay: "0.1s", animationFillMode: "both" }}>
+          <label className="text-xs uppercase tracking-widest block mb-3" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+            GitHub URL
+          </label>
+          <div
+            className="flex flex-col sm:flex-row items-stretch gap-3 p-2 rounded-2xl"
+            style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex items-center gap-3 flex-1 px-3">
+              <Github size={16} style={{ color: "var(--text-subtle)" }} />
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && generate()}
+                placeholder="https://github.com/yourname/your-project"
+                className="input-minimal flex-1 py-3 text-base focus:outline-none"
+              />
+            </div>
+            <PrimaryButton onClick={generate}>
+              {loading ? "Generating…" : "Generate bullet"}
+              {!loading && <ArrowRight size={15} strokeWidth={2.5} />}
+            </PrimaryButton>
+          </div>
+        </div>
+
+        {/* Result */}
+        <div className="mt-6">
+          {loading && (
+            <div className="glass top-rule rounded-3xl p-7 animate-fade-up">
+              <div className="flex items-center gap-3 mb-4">
+                <Sparkles size={15} style={{ color: "#FFC169" }} />
+                <span className="text-sm grad-text-shimmer font-medium">Reading your README…</span>
+              </div>
+              <div className="space-y-3">
+                <div className="h-3 rounded-full w-11/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+                <div className="h-3 rounded-full w-10/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+                <div className="h-3 rounded-full w-8/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+              </div>
+            </div>
+          )}
+
+          {bullet && !loading && (
+            <div
+              className="relative glass top-rule rounded-3xl p-7 animate-fade-up"
+              style={{ animationDuration: "0.6s" }}
+            >
+              {/* Animated gradient border */}
+              <div
+                className="absolute inset-0 rounded-3xl pointer-events-none"
+                style={{
+                  padding: 1,
+                  background: "linear-gradient(135deg, rgba(255,107,44,0.5), rgba(255,184,0,0.3), rgba(129,140,248,0.3))",
+                  WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                  WebkitMaskComposite: "xor",
+                  maskComposite: "exclude",
+                }}
+              />
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} style={{ color: "#FFC169" }} />
+                  <span className="text-xs uppercase tracking-widest" style={{ color: "#FFC169", letterSpacing: "0.18em" }}>
+                    Resume bullet
+                  </span>
+                </div>
+                <button
+                  onClick={copy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid var(--border)",
+                    color: copied ? "#34D399" : "var(--text-muted)",
+                  }}
+                >
+                  {copied ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="text-lg leading-relaxed" style={{ letterSpacing: "-0.01em" }}>
+                {bullet}
+              </p>
+            </div>
+          )}
+
+          {!loading && !bullet && (
+            <div className="mt-6 flex flex-col items-center text-center py-10">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                style={{
+                  background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.18), rgba(255,107,44,0.03))",
+                  border: "1px solid rgba(255,138,61,0.18)",
+                }}
+              >
+                <Github size={26} style={{ color: "#FFC169" }} />
+              </div>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Paste a GitHub URL above to generate your first bullet.
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+/* ── Roadmap full page ──────────────────────────────────────────────────────── */
+const Roadmap = ({ onNav, state }) => (
+  <div>
+    <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+    <main className="max-w-3xl mx-auto px-6 py-12">
+      <div className="mb-10 animate-fade-up">
+        <div className="inline-flex mb-4">
+          <GradientIcon Icon={Compass} size={20} />
+        </div>
+        <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: "clamp(32px, 4vw, 44px)", lineHeight: 1.05 }}>
+          Your 12-week roadmap
+        </h1>
+        <p style={{ color: "var(--text-muted)" }} className="max-w-xl">
+          A system, not a wish-list. Stay on the current week — momentum compounds.
+        </p>
+      </div>
+
+      <ol className="relative space-y-3">
+        {state.roadmap.map((w, i) => {
+          const isDone = w.status === "done";
+          const isCurrent = w.status === "current";
+          return (
+            <li
+              key={w.week}
+              className="glass top-rule rounded-2xl p-5 flex items-start gap-5"
+              style={{
+                animation: `fadeUp 0.6s cubic-bezier(.2,.8,.2,1) ${i * 0.04 + 0.05}s both`,
+                borderColor: isCurrent ? "rgba(255,138,61,0.28)" : "var(--border)",
+              }}
+            >
+              <span
+                className="shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center text-xs font-medium tabular"
+                style={
+                  isDone
+                    ? {
+                        background: "linear-gradient(135deg, rgba(255,184,0,0.2), rgba(255,107,44,0.12))",
+                        border: "1px solid rgba(255,184,0,0.35)",
+                        color: "#FFD166",
+                      }
+                    : isCurrent
+                    ? {
+                        background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                        color: "#1a0c00",
+                        boxShadow: "0 8px 22px -6px rgba(255,107,44,0.55)",
+                      }
+                    : {
+                        background: "rgba(255,255,255,0.025)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-subtle)",
+                      }
+                }
+              >
+                <span style={{ fontSize: 9, letterSpacing: "0.14em", opacity: 0.8 }}>WK</span>
+                <span className="font-display font-semibold text-base">{w.week}</span>
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-display text-lg font-semibold tracking-tight">{w.title}</h3>
+                  {isCurrent && (
+                    <span
+                      className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "rgba(255,138,61,0.14)",
+                        color: "#FFC169",
+                        letterSpacing: "0.2em",
+                      }}
+                    >
+                      Now
+                    </span>
+                  )}
+                  {isDone && (
+                    <span
+                      className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "rgba(52,211,153,0.12)",
+                        color: "#34D399",
+                        letterSpacing: "0.2em",
+                      }}
+                    >
+                      Done
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm" style={{ color: isDone || isCurrent ? "var(--text-muted)" : "var(--text-subtle)" }}>
+                  {w.task}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-base font-semibold tabular grad-text">+{w.xp}</div>
+                <div className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+                  XP
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </main>
+  </div>
+);
+
+/* ── State reducer ──────────────────────────────────────────────────────────── */
+const initialState = {
+  xp: 720,
+  xpToNext: 1000,
+  level: 4,
+  streak: 7,
+  currentWeek: 2,
+  roadmap: MOCK_ROADMAP,
+  wins: MOCK_RECENT_WINS,
+};
+
+const reducer = (state, action) => {
+  if (action.type === "complete") {
+    // Mark current week done, advance current to next, add XP, level up if needed
+    const idx = state.roadmap.findIndex((w) => w.status === "current");
+    if (idx === -1) return state;
+    const newRoadmap = state.roadmap.map((w, i) => {
+      if (i === idx) return { ...w, status: "done" };
+      if (i === idx + 1) return { ...w, status: "current" };
+      return w;
+    });
+    let xp = state.xp + action.xp;
+    let level = state.level;
+    let xpToNext = state.xpToNext;
+    while (xp >= xpToNext) {
+      xp -= xpToNext;
+      level += 1;
+      xpToNext = Math.round(xpToNext * 1.25);
+    }
+    const newWin = {
+      title: state.roadmap[idx].task,
+      xp: action.xp,
+      when: "just now",
+    };
+    return {
+      ...state,
+      xp,
+      xpToNext,
+      level,
+      streak: state.streak + 1,
+      currentWeek: state.currentWeek + 1,
+      roadmap: newRoadmap,
+      wins: [newWin, ...state.wins].slice(0, 3),
+    };
+  }
+  if (action.type === "set_goal") {
+    return { ...state, goal: action.goal };
+  }
+  return state;
+};
+
+/* ── Main App ───────────────────────────────────────────────────────────────── */
+export default function App() {
+  const [screen, setScreen] = useState("landing");
+  const [state, setState] = useState(initialState);
+  const [goal, setGoal] = useState("Get into Cornell Tech");
+
+  const dispatch = useCallback((action) => {
+    setState((s) => reducer(s, action));
+  }, []);
+
+  const navigate = (next) => {
+    setScreen(next);
+    if (next !== "landing") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const startFlow = () => navigate("onboarding");
+  const onGoalSubmit = (g) => {
+    setGoal(g);
+    navigate("forging");
+  };
+  const onForgeDone = () => navigate("dashboard");
+
+  return (
+    <>
+      <GlobalStyles />
+      <AmbientBackground />
+
+      <div key={screen} className="animate-fade-in">
+        {screen === "landing" && <Landing onStart={startFlow} />}
+        {screen === "onboarding" && <Onboarding onSubmit={onGoalSubmit} />}
+        {screen === "forging" && <ForgingLoader goal={goal} onDone={onForgeDone} />}
+        {screen === "dashboard" && (
+          <Dashboard state={state} dispatch={dispatch} onNav={navigate} />
+        )}
+        {screen === "portfolio" && <Portfolio onNav={navigate} state={state} />}
+        {screen === "roadmap" && <Roadmap onNav={navigate} state={state} />}
+      </div>
+    </>
+  );
+}
