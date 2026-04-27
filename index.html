@@ -29,6 +29,7 @@
 
         const {
             ArrowRight,
+            ArrowLeft,
             Flame,
             Sparkles,
             Target,
@@ -46,6 +47,20 @@
             User,
             LogOut,
             Settings,
+            Code2,
+            Brain,
+            Shield,
+            Gamepad2,
+            PenTool,
+            Layers,
+            Wand2,
+            MessageSquare,
+            Activity,
+            Clock,
+            GraduationCap,
+            Briefcase,
+            DollarSign,
+            BookOpen,
         } = window.lucideReact;
 
         /* ────────────────────────────────────────────────────────────────────────────
@@ -54,52 +69,102 @@
            ──────────────────────────────────────────────────────────────────────────── */
 
         /* ── AI Service Layer ───────────────────────────────────────────────────────── */
+        // Runtime-loaded keys live in localStorage so they're never embedded in source.
+        // Use the "Connect AI" panel (top-right of dashboard) to add/swap keys.
         const AI_CONFIG = {
-          provider: 'gemini',
-          geminiKey: 'AIzaSyCan43RuVjvyHE1T3ohTDzwXb_H0Ghdp6E',
-          openaiKey: '',
-          geminiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+          // Default Gemini model — Gemini 2.5 Flash is smarter than 2.0 with similar speed.
+          geminiModel: 'gemini-2.5-flash',
+          openaiModel: 'gpt-4o-mini',
           openaiUrl: 'https://api.openai.com/v1/chat/completions',
+        };
+        const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model || AI_CONFIG.geminiModel}:generateContent`;
+
+        const AI_KEYS = {
+          get gemini() { return localStorage.getItem('forge_ai_gemini') || ''; },
+          set gemini(v) { localStorage.setItem('forge_ai_gemini', v || ''); },
+          get openai() { return localStorage.getItem('forge_ai_openai') || ''; },
+          set openai(v) { localStorage.setItem('forge_ai_openai', v || ''); },
+        };
+
+        // Live AI status — read by the dashboard pill so the user sees what's actually firing.
+        const AI_STATUS = {
+          provider: null,        // 'gemini' | 'openai' | 'fallback'
+          lastError: null,       // string | null
+          lastSuccessAt: 0,
+          subs: new Set(),
+          set(provider, lastError = null) {
+            this.provider = provider;
+            this.lastError = lastError;
+            if (provider !== 'fallback') this.lastSuccessAt = Date.now();
+            this.subs.forEach(fn => { try { fn({ provider, lastError, lastSuccessAt: this.lastSuccessAt }); } catch {} });
+          },
+          subscribe(fn) { this.subs.add(fn); return () => this.subs.delete(fn); },
         };
 
         const callAI = async (prompt, systemPrompt = '') => {
           const sys = systemPrompt || 'You are Forge AI, a career mentor built for students at Information Technology High School (ITHS) in Long Island City, NYC. You give specific, actionable advice about tech careers, college prep, portfolio building, and skill development. Be encouraging but direct. Keep responses concise (2-4 sentences unless asked for more).';
-          
-          if (AI_CONFIG.geminiKey) {
+
+          if (AI_KEYS.gemini) {
             try {
-              const res = await fetch(`${AI_CONFIG.geminiUrl}?key=${AI_CONFIG.geminiKey}`, {
+              const res = await fetch(`${geminiUrl()}?key=${AI_KEYS.gemini}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   system_instruction: { parts: [{ text: sys }] },
                   contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { temperature: 0.8, maxOutputTokens: 1024 }
-                })
+                  generationConfig: { temperature: 0.8, maxOutputTokens: 1024 },
+                }),
               });
-              if (!res.ok) throw new Error('Gemini API returned ' + res.status);
+              if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                throw new Error(`Gemini ${res.status}: ${errText.slice(0, 120)}`);
+              }
               const data = await res.json();
               const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (text) return text;
-            } catch (e) { console.warn('Gemini error:', e); }
+              if (text) { AI_STATUS.set('gemini'); return text; }
+              throw new Error('Gemini returned empty body');
+            } catch (e) { console.warn('Gemini error:', e); AI_STATUS.set('fallback', String(e.message || e)); }
           }
-          if (AI_CONFIG.openaiKey) {
+          if (AI_KEYS.openai) {
             try {
               const res = await fetch(AI_CONFIG.openaiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_CONFIG.openaiKey}` },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_KEYS.openai}` },
                 body: JSON.stringify({
-                  model: 'gpt-4o-mini',
+                  model: AI_CONFIG.openaiModel,
                   messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
-                  max_tokens: 1024, temperature: 0.8
-                })
+                  max_tokens: 1024, temperature: 0.8,
+                }),
               });
-              if (!res.ok) throw new Error('OpenAI API returned ' + res.status);
+              if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                throw new Error(`OpenAI ${res.status}: ${errText.slice(0, 120)}`);
+              }
               const data = await res.json();
               const text = data.choices?.[0]?.message?.content;
-              if (text) return text;
-            } catch (e) { console.warn('OpenAI error:', e); }
+              if (text) { AI_STATUS.set('openai'); return text; }
+              throw new Error('OpenAI returned empty body');
+            } catch (e) { console.warn('OpenAI error:', e); AI_STATUS.set('fallback', String(e.message || e)); }
           }
+          AI_STATUS.set('fallback', AI_KEYS.gemini || AI_KEYS.openai ? AI_STATUS.lastError : 'No API key configured');
           return smartMockResponse(prompt);
+        };
+
+        /* Robust JSON extractor — returns null instead of throwing when input isn't JSON. */
+        const safeParseJSON = (raw, kind /* 'array' | 'object' */) => {
+          if (!raw || typeof raw !== 'string') return null;
+          let s = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+          // Strip leading prose
+          if (kind === 'array') {
+            const i = s.indexOf('['); const j = s.lastIndexOf(']');
+            if (i === -1 || j === -1 || j < i) return null;
+            s = s.slice(i, j + 1);
+          } else {
+            const i = s.indexOf('{'); const j = s.lastIndexOf('}');
+            if (i === -1 || j === -1 || j < i) return null;
+            s = s.slice(i, j + 1);
+          }
+          try { return JSON.parse(s); } catch { return null; }
         };
 
         const smartMockResponse = (prompt) => {
@@ -141,73 +206,335 @@
           return 'Great question! As an ITHS student, you have a unique advantage — you\'re already in a tech-focused environment. Focus on building real projects, contributing to open source, and connecting with the NYC tech community. Every line of code you ship is a step closer to your goal. What specific area would you like to explore?';
         };
 
-        const generateRoadmap = async (goal) => {
-          const prompt = `Generate a 12-week career roadmap for an ITHS (Information Technology High School) student whose goal is: "${goal}".
-
-Return ONLY a valid JSON array with exactly 12 objects. Each object must have these exact keys:
-- "week": number (1-12)
-- "title": string (3-5 words, catchy title)
-- "task": string (one specific actionable task, 15-25 words)
-- "xp": number (starting at 80, increasing by 20-40 each week)
-
-Example format:
-[{"week":1,"title":"Setup Sprint","task":"Install VS Code, create GitHub account, and push your first repo","xp":80}]
-
-Important: Output ONLY the JSON array. No markdown, no explanation, no code fences.`;
-          
-          try {
-            const response = await callAI(prompt, 'You are a JSON API. You output ONLY valid JSON arrays. Never use markdown formatting. Never add explanation text. Output raw JSON only.');
-            // Try multiple extraction strategies
-            let jsonStr = response;
-            // Remove markdown code fences
-            jsonStr = jsonStr.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
-            // Try to find the array in the response
-            const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
-            if (arrayMatch) jsonStr = arrayMatch[0];
-            jsonStr = jsonStr.trim();
-            
-            const parsed = JSON.parse(jsonStr);
-            if (Array.isArray(parsed) && parsed.length >= 8) {
-              return parsed.slice(0, 12);
-            }
-          } catch (e) { 
-            console.warn('AI roadmap parse error, using smart fallback:', e); 
-          }
-          return JSON.parse(smartMockResponse('roadmap'));
-        };
-
         const generateBullet = async (url) => {
           const prompt = `Generate a professional resume bullet point for a high school student's portfolio based on this GitHub project: ${url}. Write ONE impressive, specific bullet point (2-3 sentences) that highlights technical skills, impact, and technologies used. Make it sound like a top CS applicant wrote it.`;
           return await callAI(prompt);
         };
 
-        const chatWithMentor = async (message, history = []) => {
-          const sys = 'You are Forge AI, a career mentor for ITHS students in NYC. Give specific, actionable advice about tech careers, college prep, portfolio building, and skill development. Be encouraging but direct. Keep responses concise (2-4 sentences).';
-          // Try Gemini API directly for chat
-          if (AI_CONFIG.geminiKey) {
-            try {
-              const chatHistory = history.slice(-6).map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
-              }));
-              const res = await fetch(`${AI_CONFIG.geminiUrl}?key=${AI_CONFIG.geminiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  system_instruction: { parts: [{ text: sys }] },
-                  contents: [...chatHistory, { role: 'user', parts: [{ text: message }] }],
-                  generationConfig: { temperature: 0.8, maxOutputTokens: 512 }
-                })
-              });
-              if (res.ok) {
-                const data = await res.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) return text;
-              }
-            } catch (e) { console.warn('Chat Gemini error:', e); }
+        /* ── Adaptive UI engine ─────────────────────────────────────────────────────── */
+        const TRACKS = {
+          web:       { key: 'web',       label: 'Web Development',     blurb: 'Build for the browser',          Icon: Code2,    skills: ['HTML/CSS', 'JavaScript', 'React', 'APIs'] },
+          fullstack: { key: 'fullstack', label: 'Full-Stack',          blurb: 'Frontend + backend together',    Icon: Layers,   skills: ['React', 'Node', 'Postgres', 'Auth'] },
+          ai:        { key: 'ai',        label: 'AI / Machine Learning', blurb: 'Models, agents, data',         Icon: Brain,    skills: ['Python', 'NumPy', 'PyTorch', 'LLM APIs'] },
+          cyber:     { key: 'cyber',     label: 'Cybersecurity',       blurb: 'Defend, attack, harden',         Icon: Shield,   skills: ['Linux', 'Networking', 'CTFs', 'Security+'] },
+          game:      { key: 'game',      label: 'Game Development',    blurb: 'Ship playable worlds',           Icon: Gamepad2, skills: ['Unity', 'C#', 'Godot', 'Game design'] },
+          design:    { key: 'design',    label: 'UI / UX Design',      blurb: 'Pixel-craft + product thinking', Icon: PenTool,  skills: ['Figma', 'Design systems', 'Prototyping'] },
+        };
+
+        const LEVELS = {
+          beginner:     { key: 'beginner',     label: 'Beginner',     blurb: 'New to this — show me the ropes',           tone: 'friendly + foundational',           xpStart: 60,  xpStep: 18 },
+          intermediate: { key: 'intermediate', label: 'Intermediate', blurb: 'I\'ve shipped a few small things',          tone: 'sharper, push harder',              xpStart: 90,  xpStep: 24 },
+          advanced:     { key: 'advanced',     label: 'Advanced',     blurb: 'I want stretch goals + senior expectations', tone: 'high-bar, recruiter-ready',         xpStart: 120, xpStep: 32 },
+        };
+
+        const TIME_OPTIONS = [
+          { key: '5',   label: '~5 hrs / week',  blurb: 'Light pace — small daily commits' },
+          { key: '10',  label: '~10 hrs / week', blurb: 'Steady — one solid project per month' },
+          { key: '15+', label: '15+ hrs / week', blurb: 'Heavy — full transformation mode' },
+        ];
+
+        const OUTCOMES = {
+          college:    { key: 'college',    label: 'College admissions',  blurb: 'Cornell, NYU, Stony Brook, etc.',  Icon: GraduationCap },
+          internship: { key: 'internship', label: 'Internship / job',    blurb: 'Get paid to build',                Icon: Briefcase },
+          portfolio:  { key: 'portfolio',  label: 'Portfolio + skills',  blurb: 'Become legitimately good',         Icon: Github },
+          freelance:  { key: 'freelance',  label: 'Freelance income',    blurb: 'Make money on the side',           Icon: DollarSign },
+        };
+
+        const profileSummary = (p) => {
+          if (!p) return '';
+          const t = TRACKS[p.track]?.label || 'Tech';
+          const l = LEVELS[p.level]?.label || 'Beginner';
+          const o = OUTCOMES[p.outcome]?.label || 'Skill-building';
+          const time = (TIME_OPTIONS.find(x => x.key === p.timeCommitment)?.label) || '~10 hrs / week';
+          return `Track: ${t} · Level: ${l} · Time: ${time} · Outcome: ${o}`;
+        };
+
+        /* Build a profile-aware system prompt for the mentor on every message. */
+        const buildMentorPrompt = (profile, state) => {
+          const summary = profileSummary(profile);
+          const goal = profile?.goal || 'Building tech skills';
+          const tone = LEVELS[profile?.level]?.tone || 'encouraging + direct';
+          const currentQuest = state?.roadmap?.find(w => w.status === 'current');
+          const currentLine = currentQuest ? `Current quest (week ${currentQuest.week}): "${currentQuest.task}"` : 'No active quest yet.';
+          const recentWins = (state?.wins || []).slice(0, 3).map(w => `- ${w.title}`).join('\n') || '- (none yet)';
+          const topics = (profile?.chatTopics || []).slice(-6).join(', ') || '(none yet)';
+          return `You are Forge AI, a personal career mentor for an ITHS (Information Technology High School, Long Island City, NYC) student.
+Tone: ${tone}. Be specific, never generic. 2–4 sentences unless asked for more.
+
+STUDENT PROFILE
+Goal: "${goal}"
+${summary}
+Recent chat topics: ${topics}
+
+CURRENT STATE
+${currentLine}
+XP: ${state?.xp ?? 0} · Level: ${state?.level ?? 1} · Streak: ${state?.streak ?? 0} days
+Recent wins:
+${recentWins}
+
+GUIDELINES
+- Tailor every answer to this student's track, level, and outcome — never give generic advice.
+- Reference their current quest when relevant.
+- If the student says they're stuck, bored, want to switch focus, or want a harder/easier challenge, suggest a concrete next step.
+- Keep it human. No corporate fluff. No bullet salad unless they ask for a list.`;
+        };
+
+        /* Detect when a chat message should trigger an adaptive quest change. */
+        const detectQuestSignal = (message) => {
+          const m = message.toLowerCase();
+          if (/(too hard|too tough|over my head|stuck|lost|confused|don'?t (get|understand)|can'?t do)/.test(m)) return 'easier';
+          if (/(too easy|boring|already know|been there|trivial|baby|simple)/.test(m)) return 'harder';
+          if (/(switch|change|pivot|different|instead of|focus on|interested in|want to learn|try)/.test(m)) return 'pivot';
+          if (/(refine|tweak|adjust|update|customize|tailor|change.*quest|new quest)/.test(m)) return 'refine';
+          return null;
+        };
+
+        /* Extract topic keywords from a chat message for memory. */
+        const extractTopics = (message) => {
+          const m = message.toLowerCase();
+          const topics = [];
+          const dict = {
+            'react': 'React', 'javascript': 'JS', 'python': 'Python', 'java': 'Java', 'node': 'Node.js',
+            'css': 'CSS', 'html': 'HTML', 'next.js': 'Next.js', 'nextjs': 'Next.js',
+            'cyber': 'cybersecurity', 'security': 'security', 'hack': 'hacking', 'ctf': 'CTFs', 'linux': 'Linux',
+            'ai': 'AI', 'ml': 'ML', 'machine': 'ML', 'data': 'data',
+            'game': 'games', 'unity': 'Unity', 'godot': 'Godot',
+            'design': 'design', 'figma': 'Figma', 'ui': 'UI', 'ux': 'UX',
+            'college': 'college', 'cornell': 'Cornell', 'nyu': 'NYU', 'stony': 'Stony Brook',
+            'internship': 'internships', 'resume': 'resume', 'interview': 'interviews', 'portfolio': 'portfolio',
+          };
+          for (const k in dict) { if (m.includes(k)) topics.push(dict[k]); }
+          return [...new Set(topics)];
+        };
+
+        /* Generate a profile-aware 12-week roadmap. */
+        const generateAdaptiveRoadmap = async (profile) => {
+          const trackLabel = TRACKS[profile.track]?.label || 'Web Development';
+          const trackSkills = TRACKS[profile.track]?.skills?.join(', ') || '';
+          const levelInfo = LEVELS[profile.level] || LEVELS.beginner;
+          const time = (TIME_OPTIONS.find(x => x.key === profile.timeCommitment)?.label) || '~10 hrs / week';
+          const outcome = OUTCOMES[profile.outcome]?.label || 'portfolio building';
+          const xpStart = levelInfo.xpStart;
+          const xpStep = levelInfo.xpStep;
+
+          const prompt = `Generate a 12-week career roadmap for an ITHS (Information Technology High School) student.
+
+PROFILE
+Goal: "${profile.goal}"
+Track: ${trackLabel} (focus skills: ${trackSkills})
+Level: ${levelInfo.label} — ${levelInfo.blurb}
+Time available: ${time}
+Primary outcome: ${outcome}
+
+Return ONLY a valid JSON array with exactly 12 objects. Each object must have these exact keys:
+- "week": number (1-12)
+- "title": string (3-5 words, catchy + track-specific)
+- "task": string (one specific actionable task tailored to ${trackLabel} for a ${levelInfo.label} student, 15-30 words)
+- "xp": number (start near ${xpStart}, increase by ${xpStep}-${xpStep + 12} each week)
+
+Tailoring rules:
+- Every task must reference concrete tools/skills from this track (${trackSkills}).
+- Beginner = micro-projects + setup. Intermediate = ship + iterate. Advanced = recruiter-grade portfolio + outreach.
+- Final weeks should drive toward "${outcome}".
+
+Output ONLY the JSON array. No markdown, no fences, no explanation.`;
+
+          const response = await callAI(prompt, 'You are a JSON API. Output ONLY a valid JSON array. No markdown, no fences, no prose.');
+          const parsed = safeParseJSON(response, 'array');
+          if (Array.isArray(parsed) && parsed.length >= 8) {
+            return parsed.slice(0, 12).map((w, i) => ({
+              week: w.week || i + 1,
+              title: w.title || `Week ${i + 1}`,
+              task: w.task || 'Ship something small.',
+              xp: w.xp || (xpStart + i * xpStep),
+            }));
           }
-          // Smart fallback using ONLY the user's message for accurate keyword matching
-          return smartMockResponse(message);
+          // Fallback: synthesize a track+level roadmap so it's never generic
+          return buildFallbackRoadmap(profile);
+        };
+
+        const buildFallbackRoadmap = (profile) => {
+          const lv = LEVELS[profile.level] || LEVELS.beginner;
+          const skills = TRACKS[profile.track]?.skills || ['HTML', 'CSS', 'JS', 'React'];
+          const outcome = OUTCOMES[profile.outcome]?.label || 'portfolio';
+          const trackTasks = {
+            web: [
+              'Set up VS Code, Git, and ship a styled landing page to GitHub Pages',
+              'Build a responsive multi-section portfolio site with semantic HTML + CSS Grid',
+              'Convert your portfolio to React with at least 4 reusable components',
+              'Add routing + a blog with MDX or markdown rendering',
+              'Wire your site to a public REST API and render dynamic data',
+              'Add a contact form with validation + serverless email (Resend / Formspree)',
+              'Ship a second project: a CRUD app with localStorage persistence',
+              'Deploy to Vercel, set up custom domain, hit 95+ Lighthouse',
+              'Open-source contribution: fix one issue on a real OSS repo',
+              'Refactor your top project for accessibility (WCAG AA)',
+              'Record a 60-sec demo video for each portfolio project',
+              'Submit applications + share your portfolio publicly',
+            ],
+            fullstack: [
+              'Set up dev stack: Node, Postgres, Git, ship a hello-world API',
+              'Build a REST API with Express + Postgres + 3 endpoints',
+              'Create a React frontend that consumes your API with auth header',
+              'Add Google OAuth login (Auth0 / NextAuth) end-to-end',
+              'Persist user-specific data with proper foreign keys + migrations',
+              'Add a real-time feature (WebSocket or Pusher)',
+              'Write integration tests for your API (Jest + supertest)',
+              'Deploy backend to Render/Railway, frontend to Vercel',
+              'Add observability: logging + a basic dashboard (Grafana / Logtail)',
+              'Refactor for performance: caching, pagination, indexes',
+              'Open-source: ship a small npm package related to your stack',
+              `Apply: tailor resume to ${outcome}, send 10 outreach emails`,
+            ],
+            ai: [
+              'Set up Python, Jupyter, and run your first notebook',
+              'NumPy + Pandas: load a public dataset, do 5 analyses, post on GitHub',
+              'Train a simple classifier (sklearn) and write up the results',
+              'Build a small NN with PyTorch on MNIST — commit weights + a notebook',
+              'Build an LLM-powered app using the Gemini or OpenAI API',
+              'Add RAG: index a doc set with embeddings + retrieve answers',
+              'Fine-tune or prompt-engineer a model for a niche task you care about',
+              'Ship a Streamlit/Gradio demo of your model with a public link',
+              'Write a technical blog post explaining one of your ML projects',
+              'Reproduce one paper or replicate a Kaggle notebook from scratch',
+              'Open-source: contribute to Hugging Face / a popular ML repo',
+              `Apply: tailor your projects to ${outcome}, write your story`,
+            ],
+            cyber: [
+              'Install Kali Linux in a VM and complete TryHackMe "Pre Security"',
+              'Master Linux fundamentals: 30 essential commands, write a cheatsheet',
+              'Networking deep dive: TCP/IP, ports, build a local network diagram',
+              'Solve 5 beginner CTFs on TryHackMe — write up each solution',
+              'Learn Burp Suite basics on PortSwigger Web Security Academy',
+              'Complete OWASP Top 10 lab walkthroughs — document each',
+              'Set up your own home lab: vulnerable VM + monitoring',
+              'CompTIA Security+ study sprint — take 3 practice exams',
+              'Write a security audit of one open-source project',
+              'Pick a specialization: red team, blue team, or appsec — go deep',
+              'Solve 10 HackTheBox machines and publish writeups',
+              `Apply: target ${outcome} in NYC cybersecurity scene`,
+            ],
+            game: [
+              'Install Unity (or Godot), build "Roll-a-Ball" / first scene',
+              'Ship Pong from scratch — physics + scoring + game over',
+              'Build a 2D platformer with player movement + 1 enemy + level',
+              'Add audio, particles, and game feel polish to your platformer',
+              'Build a simple tower-defense or top-down shooter',
+              'Learn shader basics — write 2 custom shaders',
+              'Ship a small game on itch.io with screenshots + dev log',
+              'Multiplayer prototype: local 2-player or simple netcode',
+              'Submit one entry to a public game jam (Ludum Dare / GMTK)',
+              'Polish your best game: title screen, options, save system',
+              'Record gameplay trailers for your top 2 games',
+              `Apply: tailor portfolio + dev log to ${outcome}`,
+            ],
+            design: [
+              'Set up Figma, learn auto-layout + components, redesign one app',
+              'Study Apple HIG + Material Design — annotate 5 patterns',
+              'Build your first design system: 8 components + tokens',
+              'Redesign 3 popular apps and post the case studies',
+              'Prototype a mobile app end-to-end with interactions',
+              'Conduct 5 user interviews + synthesize findings',
+              'Hand off a real design to a developer friend (or yourself)',
+              'Learn motion design basics — ship 3 micro-interactions',
+              'Build a personal site / portfolio in Framer or Webflow',
+              'Pair with a developer to ship a real product redesign',
+              'Write 3 detailed Medium / Substack case studies',
+              `Apply: send portfolio to ${outcome} (NYC startups, agencies)`,
+            ],
+          };
+          const titles = {
+            web: ['Ship the Foundation','First Real Site','Components & Routing','Routing + Blog','API Layer','Forms + Email','Second Project','Deploy + Polish','OSS Contribution','Accessibility Pass','Demo Videos','Apply + Share'],
+            fullstack: ['Stack Setup','REST API v1','Frontend + API','OAuth Login','Real Schema','Realtime','Tests','Deploy','Observability','Performance','npm Package','Apply'],
+            ai: ['Python Setup','Pandas + Data','First Classifier','First NN','LLM App','RAG Sprint','Fine-tune','Streamlit Demo','Write-up','Reproduce Paper','OSS','Apply'],
+            cyber: ['Kali + TryHackMe','Linux Mastery','Networking Deep Dive','First CTFs','Burp Suite','OWASP Top 10','Home Lab','Security+ Sprint','Audit Sprint','Pick Specialty','HTB Writeups','Apply'],
+            game: ['Engine Setup','Ship Pong','Platformer v1','Game Feel','Mini Genre','Shader Basics','Itch Release','Multiplayer','Game Jam','Polish Pass','Trailers','Apply'],
+            design: ['Figma Setup','Pattern Study','Design System','Redesigns','Prototype','User Interviews','Dev Handoff','Motion Basics','Personal Site','Pair Build','Case Studies','Apply'],
+          };
+          const list = trackTasks[profile.track] || trackTasks.web;
+          const tlist = titles[profile.track] || titles.web;
+          return list.map((t, i) => ({
+            week: i + 1,
+            title: tlist[i],
+            task: t,
+            xp: lv.xpStart + i * lv.xpStep,
+          }));
+        };
+
+        /* Local quest rewrite — used when AI is unavailable. Genuinely adapts by track + signal. */
+        const localQuestRewrite = ({ profile, signal, upcoming }) => {
+          const track = profile?.track || 'web';
+          const skills = TRACKS[track]?.skills?.slice(0, 2).join(' + ') || 'core skills';
+          const goal = profile?.goal || 'your goal';
+          const baseXp = upcoming.xp || 200;
+
+          const variants = {
+            easier: {
+              title: 'Smaller win, same direction',
+              task: `Take 25 minutes and ship a tiny version of "${upcoming.title}" using ${skills}. Just the smallest possible piece — clear scope, no perfection.`,
+              xp: Math.max(50, Math.round(baseXp * 0.65)),
+            },
+            harder: {
+              title: 'Recruiter-grade stretch',
+              task: `Level this up: take "${upcoming.task}" and add a polish layer — tests, deploy, or a write-up — until it'd impress someone hiring for ${goal}.`,
+              xp: Math.round(baseXp * 1.35),
+            },
+            pivot: {
+              title: 'Pivot quest',
+              task: `Switching focus: build a small ${TRACKS[track]?.label || 'project'} that connects what you said you're now interested in to your goal "${goal}". Ship in one sitting.`,
+              xp: baseXp,
+            },
+            refine: {
+              title: 'Sharper version',
+              task: `Same difficulty, but tied to YOUR goal: ${upcoming.task.replace(/\.$/, '')}, and explicitly use it to move toward "${goal}".`,
+              xp: baseXp,
+            },
+            advance: {
+              title: 'Build on momentum',
+              task: `You just shipped that — now extend it. Add one feature using ${skills} that pushes you closer to "${goal}". Time-box: 60 minutes.`,
+              xp: baseXp + 20,
+            },
+          };
+          const v = variants[signal] || variants.advance;
+          return { week: upcoming.week, title: v.title, task: v.task, xp: v.xp };
+        };
+
+        /* Adapt the next quest in light of what just happened (completion / chat signal). */
+        const adaptNextQuest = async ({ profile, state, completedTask, signal, chatContext }) => {
+          const trackLabel = TRACKS[profile?.track]?.label || 'Tech';
+          const upcoming = state?.roadmap?.find(w => w.status === 'current') || state?.roadmap?.find(w => w.status === 'future');
+          if (!upcoming) return null;
+
+          const directionMap = {
+            easier: 'Make the next quest noticeably more approachable — smaller scope, clearer instructions.',
+            harder: 'Raise the bar — make the next quest more ambitious and recruiter-grade.',
+            pivot:  `Pivot the next quest to align with the student's new interest based on this chat: "${chatContext || ''}".`,
+            refine: 'Refine the next quest to feel more personal and specific — same difficulty, sharper.',
+            advance: 'Build naturally on what the student just shipped — assume they internalized it.',
+          };
+          const direction = directionMap[signal] || directionMap.advance;
+
+          const prompt = `Rewrite ONE quest for an ITHS student.
+
+PROFILE: ${profileSummary(profile)} · Goal: "${profile?.goal || ''}"
+JUST COMPLETED: ${completedTask ? `"${completedTask.task}"` : '(nothing yet)'}
+NEXT QUEST (currently): "${upcoming.task}" — week ${upcoming.week}, ${upcoming.xp} XP
+
+ADAPTATION DIRECTION: ${direction}
+
+Return ONLY a JSON object with keys: "title" (3-5 words), "task" (15-30 words, specific + ${trackLabel}-flavored), "xp" (number near ${upcoming.xp}).
+No markdown, no fences, no prose.`;
+
+          // Try AI first
+          if (AI_KEYS.gemini || AI_KEYS.openai) {
+            const res = await callAI(prompt, 'You are a JSON API. Output ONLY a single valid JSON object. No prose, no fences.');
+            const obj = safeParseJSON(res, 'object');
+            if (obj && obj.title && obj.task) {
+              return { week: upcoming.week, title: obj.title, task: obj.task, xp: obj.xp || upcoming.xp };
+            }
+          }
+          // Local fallback — still genuinely adaptive
+          return localQuestRewrite({ profile, signal: signal || 'advance', upcoming });
         };
 
         /* ── Global styles, fonts, keyframes ────────────────────────────────────────── */
@@ -603,10 +930,12 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           </span>
         );
 
-        const PrimaryButton = ({ children, onClick, large = false, className = "", glow = false, type = "button" }) => (
+        const PrimaryButton = ({ children, onClick, large = false, className = "", glow = false, type = "button", disabled = false, style }) => (
           <button
             type={type}
             onClick={onClick}
+            disabled={disabled}
+            style={style}
             className={`btn-primary focus-ring rounded-full inline-flex items-center justify-center gap-2 ${large ? "px-7 py-4 text-base" : "px-5 py-3 text-sm"} ${glow ? "animate-glow-pulse" : ""} ${className}`}
           >
             {children}
@@ -1100,81 +1429,242 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           );
         };
 
-        /* ── Onboarding ─────────────────────────────────────────────────────────────── */
+        /* ── Onboarding (multi-step adaptive wizard) ────────────────────────────────── */
+        const StepProgress = ({ step, total }) => (
+          <div className="flex items-center justify-center gap-2 mb-8">
+            {Array.from({ length: total }).map((_, i) => (
+              <span
+                key={i}
+                className="rounded-full transition-all duration-500"
+                style={{
+                  height: 4,
+                  width: i === step ? 32 : i < step ? 18 : 14,
+                  background: i <= step
+                    ? 'linear-gradient(90deg, var(--primary-from), var(--primary-to))'
+                    : 'rgba(255,255,255,0.08)',
+                  boxShadow: i === step ? '0 0 12px rgba(255,138,61,0.5)' : 'none',
+                }}
+              />
+            ))}
+          </div>
+        );
+
+        const ChoiceCard = ({ Icon, label, blurb, selected, onClick }) => (
+          <button
+            type="button"
+            onClick={onClick}
+            className="glass top-rule rounded-2xl p-5 text-left flex items-start gap-4 focus-ring transition-all"
+            style={{
+              borderColor: selected ? 'rgba(255,138,61,0.45)' : undefined,
+              background: selected ? 'rgba(255,138,61,0.06)' : undefined,
+              transform: selected ? 'translateY(-1px)' : 'none',
+              boxShadow: selected ? '0 8px 28px -10px rgba(255,107,44,0.45)' : 'none',
+            }}
+          >
+            {Icon && (
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                style={{
+                  background: selected
+                    ? 'linear-gradient(135deg, var(--primary-from), var(--primary-to))'
+                    : 'rgba(255,255,255,0.04)',
+                  border: selected ? 'none' : '1px solid var(--border)',
+                }}
+              >
+                <Icon size={18} style={{ color: selected ? '#1a0c00' : '#FFC169' }} strokeWidth={2.4} />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-base font-semibold tracking-tight">{label}</div>
+              {blurb && <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{blurb}</div>}
+            </div>
+            {selected && <Check size={16} style={{ color: '#FFC169' }} className="shrink-0 mt-1" strokeWidth={2.6} />}
+          </button>
+        );
+
         const Onboarding = ({ onSubmit }) => {
-          const [goal, setGoal] = useState("");
+          const [step, setStep] = useState(0);
+          const [profile, setProfile] = useState({
+            goal: '',
+            track: null,
+            level: null,
+            timeCommitment: null,
+            outcome: null,
+          });
           const taRef = useRef(null);
 
-          useEffect(() => {
-            taRef.current?.focus();
-          }, []);
+          useEffect(() => { if (step === 0) taRef.current?.focus(); }, [step]);
 
-          const submit = () => {
-            if (!goal.trim()) return;
-            onSubmit(goal.trim());
+          const update = (patch) => setProfile(p => ({ ...p, ...patch }));
+
+          const canAdvance = useMemo(() => {
+            if (step === 0) return profile.goal.trim().length > 3;
+            if (step === 1) return !!profile.track;
+            if (step === 2) return !!profile.level;
+            if (step === 3) return !!profile.timeCommitment && !!profile.outcome;
+            return false;
+          }, [step, profile]);
+
+          const next = () => {
+            if (!canAdvance) return;
+            if (step === 3) onSubmit({ ...profile, goal: profile.goal.trim() });
+            else setStep(s => s + 1);
           };
+          const back = () => setStep(s => Math.max(0, s - 1));
+
+          const titles = [
+            'What are you forging?',
+            'Pick your track',
+            'How experienced are you?',
+            'Time + outcome',
+          ];
+          const subs = [
+            'One goal. Be specific. Forge will turn it into a 90-day system.',
+            'We\'ll tailor every quest, link, and mentor reply to this track.',
+            'Sets the difficulty and tone of your roadmap and mentor.',
+            'Last step — then your AI roadmap forges in real time.',
+          ];
 
           return (
             <div className="min-h-screen flex items-center justify-center px-6 py-20">
               <div className="w-full max-w-2xl animate-fade-up">
-                <div className="text-center mb-10">
+                <div className="text-center mb-8">
                   <div className="inline-flex mb-5">
-                    <GradientIcon Icon={Target} size={20} />
+                    <GradientIcon Icon={step === 0 ? Target : step === 1 ? Compass : step === 2 ? Zap : Rocket} size={20} />
                   </div>
+                  <StepProgress step={step} total={4} />
                   <h1
                     className="font-display font-semibold tracking-tight mb-3"
-                    style={{ fontSize: "clamp(32px, 4.5vw, 48px)", lineHeight: 1.05 }}
+                    style={{ fontSize: 'clamp(28px, 4vw, 42px)', lineHeight: 1.05 }}
                   >
-                    What are you forging?
+                    {titles[step]}
                   </h1>
-                  <p style={{ color: "var(--text-muted)" }} className="text-base max-w-md mx-auto">
-                    One goal. Be specific. Forge will turn it into a 90-day system.
+                  <p style={{ color: 'var(--text-muted)' }} className="text-base max-w-md mx-auto">
+                    {subs[step]}
                   </p>
                 </div>
 
-                <div className="glass top-rule rounded-3xl p-6 md:p-8 relative">
-                  <textarea
-                    ref={taRef}
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
-                    }}
-                    placeholder="e.g. Get into Cornell Tech with a strong CS portfolio by next fall"
-                    className="input-minimal w-full resize-none text-lg leading-relaxed focus:outline-none"
-                    style={{ minHeight: 110, fontFamily: "inherit" }}
-                    rows={3}
-                  />
-                  <div className="mt-6 flex items-center justify-between gap-3">
-                    <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
-                      ⌘ + Enter to submit
-                    </span>
-                    <PrimaryButton onClick={submit}>
-                      Forge my roadmap <ArrowRight size={15} strokeWidth={2.5} />
-                    </PrimaryButton>
-                  </div>
-                </div>
+                {/* Step 0: goal */}
+                {step === 0 && (
+                  <>
+                    <div className="glass top-rule rounded-3xl p-6 md:p-8 relative">
+                      <textarea
+                        ref={taRef}
+                        value={profile.goal}
+                        onChange={(e) => update({ goal: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) next(); }}
+                        placeholder="e.g. Get into Cornell Tech with a strong CS portfolio by next fall"
+                        className="input-minimal w-full resize-none text-lg leading-relaxed focus:outline-none"
+                        style={{ minHeight: 110, fontFamily: 'inherit' }}
+                        rows={3}
+                      />
+                    </div>
+                    <div className="mt-6">
+                      <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>
+                        Or start from
+                      </p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {EXAMPLE_GOALS.map((g) => (
+                          <button
+                            key={g}
+                            onClick={() => update({ goal: g })}
+                            className="chip rounded-full px-4 py-2 text-sm focus-ring"
+                            style={{
+                              background: 'rgba(255,255,255,0.02)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text-muted)',
+                            }}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
-                <div className="mt-8">
-                  <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-subtle)", letterSpacing: "0.18em" }}>
-                    Or start from
-                  </p>
-                  <div className="flex flex-wrap gap-2.5">
-                    {EXAMPLE_GOALS.map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setGoal(g)}
-                        className="chip rounded-full px-4 py-2 text-sm focus-ring"
-                        style={{
-                          background: "rgba(255,255,255,0.02)",
-                          border: "1px solid var(--border)",
-                          color: "var(--text-muted)",
-                        }}
-                      >
-                        {g}
-                      </button>
+                {/* Step 1: track */}
+                {step === 1 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.values(TRACKS).map(t => (
+                      <ChoiceCard
+                        key={t.key}
+                        Icon={t.Icon}
+                        label={t.label}
+                        blurb={t.blurb}
+                        selected={profile.track === t.key}
+                        onClick={() => update({ track: t.key })}
+                      />
                     ))}
                   </div>
+                )}
+
+                {/* Step 2: level */}
+                {step === 2 && (
+                  <div className="grid grid-cols-1 gap-3">
+                    {Object.values(LEVELS).map(l => (
+                      <ChoiceCard
+                        key={l.key}
+                        Icon={l.key === 'beginner' ? Sparkles : l.key === 'intermediate' ? Hammer : Trophy}
+                        label={l.label}
+                        blurb={l.blurb}
+                        selected={profile.level === l.key}
+                        onClick={() => update({ level: l.key })}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Step 3: time + outcome */}
+                {step === 3 && (
+                  <div className="space-y-6">
+                    <div>
+                      <div className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>Time per week</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {TIME_OPTIONS.map(t => (
+                          <ChoiceCard
+                            key={t.key}
+                            Icon={Clock}
+                            label={t.label}
+                            blurb={t.blurb}
+                            selected={profile.timeCommitment === t.key}
+                            onClick={() => update({ timeCommitment: t.key })}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>Primary outcome</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {Object.values(OUTCOMES).map(o => (
+                          <ChoiceCard
+                            key={o.key}
+                            Icon={o.Icon}
+                            label={o.label}
+                            blurb={o.blurb}
+                            selected={profile.outcome === o.key}
+                            onClick={() => update({ outcome: o.key })}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nav */}
+                <div className="mt-8 flex items-center justify-between gap-3">
+                  {step > 0 ? (
+                    <button
+                      onClick={back}
+                      className="px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 focus-ring"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      <ArrowLeft size={14} /> Back
+                    </button>
+                  ) : <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>⌘ + Enter to continue</span>}
+                  <PrimaryButton onClick={next} disabled={!canAdvance} style={{ opacity: canAdvance ? 1 : 0.45 }}>
+                    {step < 3 ? 'Continue' : 'Forge my roadmap'} <ArrowRight size={15} strokeWidth={2.5} />
+                  </PrimaryButton>
                 </div>
               </div>
             </div>
@@ -1182,12 +1672,14 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
         };
 
         /* ── Forging loader ─────────────────────────────────────────────────────────── */
-        const ForgingLoader = ({ goal, onDone }) => {
+        const ForgingLoader = ({ profile, onDone }) => {
+          const trackLabel = TRACKS[profile?.track]?.label || 'your track';
+          const levelLabel = LEVELS[profile?.level]?.label || 'your level';
           const phases = [
-            "Analyzing your goal",
-            "Mapping skills you'll need",
-            "Calibrating to week 1",
-            "Forging your 12-week plan",
+            'Analyzing your goal',
+            `Mapping ${trackLabel} skills`,
+            `Calibrating for ${levelLabel}`,
+            'Forging your 12-week plan',
           ];
           const [phase, setPhase] = useState(0);
 
@@ -1197,7 +1689,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               setTimeout(() => !cancelled && setPhase(1), 700);
               setTimeout(() => !cancelled && setPhase(2), 1500);
               setTimeout(() => !cancelled && setPhase(3), 2300);
-              const roadmap = await generateRoadmap(goal);
+              const roadmap = await generateAdaptiveRoadmap(profile);
               const formatted = roadmap.map((w, i) => ({
                 ...w,
                 week: w.week || i + 1,
@@ -1207,7 +1699,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             };
             run();
             return () => { cancelled = true; };
-          }, [goal]);
+          }, [profile]);
 
           return (
             <div className="min-h-screen flex items-center justify-center px-6">
@@ -1239,8 +1731,11 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                 >
                   <span className="grad-text-shimmer">Forging your roadmap…</span>
                 </h2>
-                <p style={{ color: "var(--text-muted)" }} className="text-base mb-10 italic">
-                  "{goal}"
+                <p style={{ color: "var(--text-muted)" }} className="text-base mb-2 italic">
+                  "{profile?.goal}"
+                </p>
+                <p style={{ color: "var(--text-subtle)" }} className="text-xs mb-10 uppercase tracking-widest">
+                  {profileSummary(profile)}
                 </p>
 
                 <div className="space-y-2.5 max-w-sm mx-auto">
@@ -1276,8 +1771,196 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
         };
 
         /* ── Dashboard top bar ──────────────────────────────────────────────────────── */
+        /* AI status pill — subscribes to AI_STATUS, opens the Connect AI panel on click. */
+        const AIStatusPill = ({ onOpenConnect }) => {
+          const [status, setStatus] = useState({
+            provider: AI_STATUS.provider,
+            lastError: AI_STATUS.lastError,
+            lastSuccessAt: AI_STATUS.lastSuccessAt,
+          });
+          useEffect(() => AI_STATUS.subscribe(setStatus), []);
+
+          const live = status.provider && status.provider !== 'fallback';
+          const dotColor = live ? '#34D399' : '#F59E0B';
+          const text = live
+            ? (status.provider === 'gemini' ? 'Gemini live' : 'OpenAI live')
+            : (AI_KEYS.gemini || AI_KEYS.openai ? 'AI offline · using fallback' : 'Connect AI');
+          const title = status.lastError ? `Last error: ${status.lastError}` : (live ? 'Real AI is driving the UI' : 'Click to add an API key');
+
+          return (
+            <button
+              onClick={onOpenConnect}
+              title={title}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
+              style={{
+                background: live ? 'rgba(52,211,153,0.08)' : 'rgba(245,158,11,0.08)',
+                border: `1px solid ${live ? 'rgba(52,211,153,0.25)' : 'rgba(245,158,11,0.25)'}`,
+                color: live ? '#86EFAC' : '#FCD34D',
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}` }}
+              />
+              {text}
+            </button>
+          );
+        };
+
+        /* Connect AI modal — paste a Gemini or OpenAI key, stored in localStorage. */
+        const ConnectAIModal = ({ open, onClose }) => {
+          const [gemini, setGemini] = useState(AI_KEYS.gemini);
+          const [openai, setOpenai] = useState(AI_KEYS.openai);
+          const [testing, setTesting] = useState(false);
+          const [testResult, setTestResult] = useState(null);
+
+          useEffect(() => {
+            if (open) {
+              setGemini(AI_KEYS.gemini);
+              setOpenai(AI_KEYS.openai);
+              setTestResult(null);
+            }
+          }, [open]);
+
+          const save = () => {
+            AI_KEYS.gemini = gemini.trim();
+            AI_KEYS.openai = openai.trim();
+            setTestResult(null);
+            // Reset status so the next call updates the pill
+            AI_STATUS.set(null);
+          };
+
+          const test = async () => {
+            save();
+            setTesting(true);
+            setTestResult(null);
+            try {
+              const out = await callAI('Reply with the single word: OK', 'You are a test endpoint. Reply with exactly: OK');
+              const ok = AI_STATUS.provider && AI_STATUS.provider !== 'fallback';
+              setTestResult({ ok, msg: ok ? `${AI_STATUS.provider} responded ✓` : (AI_STATUS.lastError || 'Request fell back to mock') });
+            } catch (e) {
+              setTestResult({ ok: false, msg: String(e.message || e) });
+            }
+            setTesting(false);
+          };
+
+          if (!open) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(8,8,12,0.7)', backdropFilter: 'blur(8px)' }}>
+              <div className="w-full max-w-lg glass top-rule rounded-3xl p-6 md:p-8 animate-fade-up" style={{ border: '1px solid rgba(255,138,61,0.2)' }}>
+                <div className="flex items-start justify-between mb-5 gap-4">
+                  <div>
+                    <div className="inline-flex mb-3"><GradientIcon Icon={Sparkles} size={18} /></div>
+                    <h2 className="font-display text-xl font-semibold tracking-tight">Connect AI</h2>
+                    <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+                      Paste a key to power real AI roadmaps, mentor chat, and adaptive quests. Keys are stored in your browser only.
+                    </p>
+                  </div>
+                  <button onClick={onClose} className="text-xl px-2 focus-ring rounded-lg" style={{ color: 'var(--text-subtle)' }}>×</button>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs uppercase tracking-widest" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>
+                        Gemini key (recommended · free)
+                      </label>
+                      <a
+                        href="https://aistudio.google.com/apikey"
+                        target="_blank"
+                        rel="noopener"
+                        className="text-xs underline"
+                        style={{ color: '#FFC169' }}
+                      >
+                        Get one free →
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      value={gemini}
+                      onChange={e => setGemini(e.target.value)}
+                      placeholder="AIza..."
+                      className="input-minimal w-full py-3 px-4 rounded-xl text-sm focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', fontFamily: 'monospace' }}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs uppercase tracking-widest" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>
+                        OpenAI key (fallback · paid)
+                      </label>
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noopener"
+                        className="text-xs underline"
+                        style={{ color: '#FFC169' }}
+                      >
+                        Get one →
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      value={openai}
+                      onChange={e => setOpenai(e.target.value)}
+                      placeholder="sk-..."
+                      className="input-minimal w-full py-3 px-4 rounded-xl text-sm focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', fontFamily: 'monospace' }}
+                    />
+                  </div>
+
+                  {testResult && (
+                    <div
+                      className="text-sm px-4 py-2.5 rounded-xl"
+                      style={{
+                        background: testResult.ok ? 'rgba(52,211,153,0.08)' : 'rgba(244,63,94,0.08)',
+                        border: `1px solid ${testResult.ok ? 'rgba(52,211,153,0.25)' : 'rgba(244,63,94,0.25)'}`,
+                        color: testResult.ok ? '#86EFAC' : '#FB7185',
+                      }}
+                    >
+                      {testResult.ok ? '✓ ' : '⚠ '}{testResult.msg}
+                    </div>
+                  )}
+
+                  <div className="text-[11px] leading-relaxed p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', color: 'var(--text-subtle)' }}>
+                    <strong style={{ color: 'var(--text-muted)' }}>Privacy:</strong> Keys live in this browser's localStorage and are sent only to Google/OpenAI directly. They are never logged or transmitted elsewhere. Use a restricted key (HTTP referrer / IP) for production.
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2.5 rounded-full text-sm focus-ring"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={test}
+                    disabled={testing || (!gemini.trim() && !openai.trim())}
+                    className="px-4 py-2.5 rounded-full text-sm focus-ring inline-flex items-center gap-2"
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--border-strong)',
+                      color: 'var(--text)',
+                      opacity: (testing || (!gemini.trim() && !openai.trim())) ? 0.5 : 1,
+                    }}
+                  >
+                    {testing ? 'Testing…' : 'Save & Test'}
+                  </button>
+                  <PrimaryButton onClick={() => { save(); onClose(); }}>
+                    Save <Check size={14} strokeWidth={2.6} />
+                  </PrimaryButton>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
         const TopBar = ({ xp, level, streak, onNav, onProfile, user, signOut }) => {
           const [open, setOpen] = useState(false);
+          const [connectOpen, setConnectOpen] = useState(false);
           const xpDisplay = useCountUp(xp);
           const levelDisplay = useCountUp(level);
           const streakDisplay = useCountUp(streak);
@@ -1322,8 +2005,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   ))}
                 </div>
 
-                {/* Stats cluster + profile */}
+                {/* Stats cluster + AI status + profile */}
                 <div className="flex items-center gap-2">
+                  <AIStatusPill onOpenConnect={() => setConnectOpen(true)} />
                   <div
                     className="hidden sm:flex items-center gap-3 px-3.5 py-1.5 rounded-full text-sm tabular"
                     style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
@@ -1370,6 +2054,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                         <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5" onClick={() => { setOpen(false); onProfile(); }}>
                           <User size={14} /> Profile
                         </button>
+                        <button onClick={() => { setOpen(false); setConnectOpen(true); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5">
+                          <Sparkles size={14} /> Connect AI
+                        </button>
                         <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5">
                           <Settings size={14} /> Settings
                         </button>
@@ -1381,12 +2068,13 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   </div>
                 </div>
               </div>
+              <ConnectAIModal open={connectOpen} onClose={() => setConnectOpen(false)} />
             </div>
           );
         };
 
         /* ── Today's Quest hero card ───────────────────────────────────────────────── */
-        const TodaysQuest = ({ task, onComplete, sweep, exiting, entering }) => {
+        const TodaysQuest = ({ task, onComplete, onRefine, sweep, exiting, entering, adapting }) => {
           if (!task) {
             return (
               <div className="glass top-rule rounded-3xl p-10 flex flex-col items-center justify-center text-center min-h-[420px]">
@@ -1408,8 +2096,8 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             >
               {sweep && <div className="gold-sweep" />}
 
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span
                     className="text-[11px] font-semibold tracking-widest uppercase px-2.5 py-1 rounded-full"
                     style={{
@@ -1424,7 +2112,36 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   <span className="text-xs flex items-center gap-1.5" style={{ color: "var(--text-subtle)" }}>
                     <CircleDot size={10} /> Week {task.week} · {task.title}
                   </span>
+                  {task.adapted && (
+                    <span
+                      className="text-[10px] font-medium tracking-widest uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(129,140,248,0.18), rgba(255,138,61,0.18))',
+                        border: '1px solid rgba(129,140,248,0.35)',
+                        color: '#C4C9FF',
+                        letterSpacing: '0.16em',
+                      }}
+                      title={task.adaptReason || 'Tuned by Forge AI'}
+                    >
+                      <Wand2 size={10} strokeWidth={2.6} /> AI tuned
+                    </span>
+                  )}
                 </div>
+                <button
+                  onClick={onRefine}
+                  disabled={adapting}
+                  className="text-xs px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 focus-ring"
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-muted)',
+                    opacity: adapting ? 0.6 : 1,
+                    cursor: adapting ? 'wait' : 'pointer',
+                  }}
+                >
+                  <Wand2 size={12} strokeWidth={2.4} />
+                  {adapting ? 'Tuning…' : 'Refine quest'}
+                </button>
               </div>
 
               <div className="flex flex-col md:flex-row md:items-end gap-8">
@@ -1435,7 +2152,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   >
                     {task.task}
                   </h2>
-                  <div className="flex items-center gap-4 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <div className="flex items-center gap-4 text-sm flex-wrap" style={{ color: "var(--text-muted)" }}>
                     <span className="flex items-center gap-1.5">
                       <Target size={13} /> ~ {Math.max(30, Math.min(120, task.xp))} min
                     </span>
@@ -1686,12 +2403,97 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           </div>
         );
 
+        /* ── Adaptive helpers for Dashboard ─────────────────────────────────────────── */
+        const greetingFor = (level) => {
+          if (level === 'advanced') return 'Ready to ship something recruiter-grade?';
+          if (level === 'intermediate') return 'Your skills are compounding. Let\'s keep stacking.';
+          return 'One small win today keeps the streak alive.';
+        };
+
+        const trackQuickLink = (track, onNav) => {
+          const map = {
+            web:       { label: 'Portfolio generator',  blurb: 'Turn a GitHub repo into a bullet',     Icon: Github,    target: 'portfolio' },
+            fullstack: { label: 'Portfolio generator',  blurb: 'Turn a GitHub repo into a bullet',     Icon: Github,    target: 'portfolio' },
+            ai:        { label: 'Model playground',     blurb: 'Test prompts, log experiments',        Icon: Brain,     target: 'portfolio' },
+            cyber:     { label: 'CTF lab notebook',     blurb: 'Log writeups + Security+ progress',    Icon: Shield,    target: 'portfolio' },
+            game:      { label: 'Game dev log',         blurb: 'Track builds, jams, and itch releases', Icon: Gamepad2,  target: 'portfolio' },
+            design:    { label: 'Case-study builder',   blurb: 'Turn projects into design case studies', Icon: PenTool,  target: 'portfolio' },
+          };
+          return map[track] || map.web;
+        };
+
+        /* AI Pulse — a panel that summarizes how the AI is reading your progress. */
+        const AIPulse = ({ profile, state }) => {
+          const t = TRACKS[profile?.track]?.label || 'Tech';
+          const lv = LEVELS[profile?.level]?.label || 'Beginner';
+          const recentTopics = (profile?.chatTopics || []).slice(-4);
+          const completed = state.roadmap.filter(w => w.status === 'done').length;
+          const pct = Math.round((completed / state.roadmap.length) * 100);
+          const adapted = state.roadmap.filter(w => w.adapted).length;
+
+          return (
+            <div className="glass top-rule rounded-3xl p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Activity size={15} style={{ color: '#FFC169' }} />
+                  <h3 className="font-display text-base font-semibold tracking-tight">AI Pulse</h3>
+                </div>
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest"
+                  style={{ background: 'rgba(255,138,61,0.1)', color: '#FFC169', letterSpacing: '0.18em' }}
+                >
+                  Live
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+                Tuning your roadmap for a <span style={{ color: '#FFC169' }}>{lv.toLowerCase()}</span> learner on the <span style={{ color: '#FFC169' }}>{t}</span> track.
+                {adapted > 0 && <> AI has rewritten <span style={{ color: '#FFC169' }}>{adapted}</span> quest{adapted === 1 ? '' : 's'} based on your chats.</>}
+              </p>
+              <div className="space-y-3 mt-auto">
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span style={{ color: 'var(--text-subtle)' }}>Roadmap progress</span>
+                    <span className="tabular" style={{ color: 'var(--text-muted)' }}>{completed} / {state.roadmap.length} · {pct}%</span>
+                  </div>
+                  <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${pct}%`,
+                        background: 'linear-gradient(90deg, var(--primary-from), var(--primary-to))',
+                      }}
+                    />
+                  </div>
+                </div>
+                {recentTopics.length > 0 && (
+                  <div>
+                    <div className="text-xs mb-1.5" style={{ color: 'var(--text-subtle)' }}>Recent chat topics</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentTopics.map((tp, i) => (
+                        <span
+                          key={i}
+                          className="text-[11px] px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                        >
+                          {tp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
         /* ── Dashboard ──────────────────────────────────────────────────────────────── */
-        const Dashboard = ({ state, dispatch, onNav, goal, user, signOut }) => {
+        const Dashboard = ({ state, dispatch, onNav, profile, user, signOut }) => {
           const [exiting, setExiting] = useState(false);
           const [entering, setEntering] = useState(false);
           const [sweep, setSweep] = useState(false);
           const [confetti, setConfetti] = useState(0);
+          const [adapting, setAdapting] = useState(false);
+          const [adaptToast, setAdaptToast] = useState(null);
 
           const currentTask = useMemo(
             () => state.roadmap.find((w) => w.status === "current"),
@@ -1702,17 +2504,52 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             if (!currentTask) return;
             setSweep(true);
             setConfetti((n) => n + 1);
+            setTimeout(() => setExiting(true), 450);
             setTimeout(() => {
-              setExiting(true);
-            }, 450);
-            setTimeout(() => {
-              dispatch({ type: "complete", xp: currentTask.xp, week: currentTask.week });
+              dispatch({ type: 'complete', xp: currentTask.xp, week: currentTask.week });
               setExiting(false);
               setSweep(false);
               setEntering(true);
             }, 1000);
             setTimeout(() => setEntering(false), 1700);
+
+            // After a short delay, ask the AI to adapt the upcoming quest based on completion + profile.
+            setTimeout(async () => {
+              setAdapting(true);
+              const next = await adaptNextQuest({
+                profile,
+                state,
+                completedTask: currentTask,
+                signal: 'advance',
+              });
+              setAdapting(false);
+              if (next) {
+                dispatch({ type: 'adapt_current_quest', quest: next, reason: 'tuned after completion' });
+                setAdaptToast('AI tuned your next quest');
+                setTimeout(() => setAdaptToast(null), 3500);
+              }
+            }, 1900);
           };
+
+          const refineCurrentQuest = async () => {
+            if (!currentTask || adapting) return;
+            setAdapting(true);
+            const next = await adaptNextQuest({
+              profile,
+              state,
+              completedTask: null,
+              signal: 'refine',
+            });
+            setAdapting(false);
+            if (next) {
+              dispatch({ type: 'adapt_current_quest', quest: next, reason: 'manual refine' });
+              setAdaptToast('Quest refined to match your profile');
+              setTimeout(() => setAdaptToast(null), 3500);
+            }
+          };
+
+          const trackLink = trackQuickLink(profile?.track, onNav);
+          const TrackBadgeIcon = TRACKS[profile?.track]?.Icon || Compass;
 
           return (
             <div>
@@ -1727,6 +2564,23 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                 signOut={signOut}
               />
 
+              {/* Adaptive toast */}
+              {adaptToast && (
+                <div
+                  className="fixed top-20 left-1/2 z-40 px-4 py-2.5 rounded-full text-sm flex items-center gap-2"
+                  style={{
+                    transform: 'translateX(-50%)',
+                    background: 'linear-gradient(135deg, rgba(255,107,44,0.95), rgba(255,184,0,0.9))',
+                    color: '#1a0c00',
+                    boxShadow: '0 12px 32px -8px rgba(255,107,44,0.6)',
+                    animation: 'fadeUp 0.4s cubic-bezier(.2,.8,.2,1)',
+                  }}
+                >
+                  <Wand2 size={14} strokeWidth={2.6} />
+                  <span className="font-medium">{adaptToast}</span>
+                </div>
+              )}
+
               <main className="max-w-7xl mx-auto px-6 py-8">
                 {/* Personalized Greeting */}
                 <div
@@ -1736,19 +2590,29 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   <h1 className="font-display font-semibold tracking-tight" style={{ fontSize: "clamp(24px, 3vw, 34px)", lineHeight: 1.1 }}>
                     Welcome back, <span className="grad-text">{user?.name?.split(' ')[0] || 'Builder'}</span>.
                   </h1>
-                  {goal && (
-                    <div className="mt-3 inline-flex items-center gap-2.5 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,138,61,0.06)', border: '1px solid rgba(255,138,61,0.15)' }}>
-                      <Target size={14} style={{ color: '#FFC169' }} />
-                      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Your goal: </span>
-                      <span className="text-sm font-medium" style={{ color: '#FFC169' }}>{goal}</span>
+                  {profile?.goal && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,138,61,0.06)', border: '1px solid rgba(255,138,61,0.15)' }}>
+                        <Target size={14} style={{ color: '#FFC169' }} />
+                        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Goal: </span>
+                        <span className="text-sm font-medium" style={{ color: '#FFC169' }}>{profile.goal}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)' }}>
+                        <TrackBadgeIcon size={13} style={{ color: '#FFC169' }} />
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{TRACKS[profile.track]?.label}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)' }}>
+                        <Zap size={13} style={{ color: '#FFC169' }} />
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{LEVELS[profile.level]?.label}</span>
+                      </div>
                     </div>
                   )}
-                  <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
-                    You're on a {state.streak}-day streak. One quest today, and you keep it alive.
+                  <p className="text-sm mt-3" style={{ color: "var(--text-muted)" }}>
+                    {greetingFor(profile?.level)} You're on a {state.streak}-day streak.
                   </p>
                 </div>
 
-                {/* Bento grid: 12 cols × 3 rows */}
+                {/* Bento grid: 12 cols */}
                 <div
                   className="grid grid-cols-1 lg:grid-cols-12 gap-4"
                   style={{ gridAutoRows: "minmax(0, auto)" }}
@@ -1761,13 +2625,15 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     <TodaysQuest
                       task={currentTask}
                       onComplete={completeQuest}
+                      onRefine={refineCurrentQuest}
                       sweep={sweep}
                       exiting={exiting}
                       entering={entering}
+                      adapting={adapting}
                     />
                   </div>
 
-                  {/* Stats — col-span-4 */}
+                  {/* Stats */}
                   <div
                     className="lg:col-span-4"
                     style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.20s both" }}
@@ -1780,7 +2646,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     />
                   </div>
 
-                  {/* Skill tree — col-span-4, row-span-2 */}
+                  {/* Skill tree */}
                   <div
                     className="lg:col-span-4 lg:row-span-2"
                     style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.28s both" }}
@@ -1788,28 +2654,36 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     <SkillTree weeks={state.roadmap} currentWeek={state.currentWeek} />
                   </div>
 
-                  {/* Recent wins — col-span-8 (under hero quest) */}
+                  {/* AI Pulse — adaptive panel */}
                   <div
-                    className="lg:col-span-8"
-                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.36s both" }}
+                    className="lg:col-span-4"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.34s both" }}
+                  >
+                    <AIPulse profile={profile} state={state} />
+                  </div>
+
+                  {/* Recent wins */}
+                  <div
+                    className="lg:col-span-4"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.42s both" }}
                   >
                     <RecentWins wins={state.wins} />
                   </div>
                 </div>
 
-                {/* Quick links */}
+                {/* Adaptive quick links */}
                 <div
                   className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4"
                   style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.5s both" }}
                 >
                   <button
-                    onClick={() => onNav("portfolio")}
+                    onClick={() => onNav(trackLink.target)}
                     className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
                   >
-                    <GradientIcon Icon={Github} size={20} />
+                    <GradientIcon Icon={trackLink.Icon} size={20} />
                     <div className="flex-1 min-w-0">
-                      <div className="font-display text-base font-semibold tracking-tight">Portfolio generator</div>
-                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>Turn a GitHub repo into a bullet</div>
+                      <div className="font-display text-base font-semibold tracking-tight">{trackLink.label}</div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>{trackLink.blurb}</div>
                     </div>
                     <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
                   </button>
@@ -1820,7 +2694,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     <GradientIcon Icon={Compass} size={20} />
                     <div className="flex-1 min-w-0">
                       <div className="font-display text-base font-semibold tracking-tight">Full roadmap</div>
-                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>See all 12 weeks and what's coming</div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>All 12 weeks of {TRACKS[profile?.track]?.label || 'your plan'}</div>
                     </div>
                     <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
                   </button>
@@ -2277,33 +3151,123 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           </div>
         );
 
-        /* ── AI Chat Panel ──────────────────────────────────────────────────────── */
-        const ChatPanel = () => {
+        /* ── AI Chat Panel (adaptive, contextual mentor) ────────────────────────── */
+        const SUGGESTED_BY_TRACK = {
+          web:       ['What should I build this week?', 'Review my landing page idea', 'Make this quest harder'],
+          fullstack: ['Suggest an API project', 'How do I structure auth?', 'Make this quest harder'],
+          ai:        ['Beginner-friendly ML project?', 'Explain RAG simply', 'Make this quest harder'],
+          cyber:     ['Best CTF for my level?', 'Linux commands to drill', 'Make this quest harder'],
+          game:      ['Unity vs Godot for me?', 'First playable in a weekend?', 'Make this quest harder'],
+          design:    ['Critique my Figma file', 'Best system to study?', 'Make this quest harder'],
+        };
+
+        const ChatPanel = ({ profile, state, dispatch, updateProfile }) => {
           const [open, setOpen] = useState(false);
           const [messages, setMessages] = useState([
-            { role: 'assistant', content: 'Hey! I\'m your Forge AI mentor, built for ITHS students. Ask me anything about tech careers, college prep, coding skills, or portfolio building.' }
+            { role: 'assistant', content: profile?.goal
+                ? `Hey ${profile?.goal ? '' : ''}— I see you're aiming for "${profile.goal}". I'll tailor every reply to your ${TRACKS[profile.track]?.label || 'track'} + ${LEVELS[profile.level]?.label?.toLowerCase() || ''} setup. What do you want to dig into?`
+                : 'Hey! I\'m your Forge AI mentor. Ask me anything about tech careers, college prep, coding skills, or portfolio building.'
+            }
           ]);
           const [input, setInput] = useState('');
           const [loading, setLoading] = useState(false);
+          const [adaptingFromChat, setAdaptingFromChat] = useState(false);
           const endRef = useRef(null);
           const inputRef = useRef(null);
 
           useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
           useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
 
-          const send = async () => {
-            if (!input.trim() || loading) return;
-            const msg = input.trim();
+          const suggestions = SUGGESTED_BY_TRACK[profile?.track] || SUGGESTED_BY_TRACK.web;
+
+          const callMentor = async (msg, history) => {
+            const sys = buildMentorPrompt(profile, state);
+            if (AI_KEYS.gemini) {
+              try {
+                const chatHistory = history.slice(-6).map(m => ({
+                  role: m.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: m.content }],
+                }));
+                const res = await fetch(`${geminiUrl()}?key=${AI_KEYS.gemini}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    system_instruction: { parts: [{ text: sys }] },
+                    contents: [...chatHistory, { role: 'user', parts: [{ text: msg }] }],
+                    generationConfig: { temperature: 0.8, maxOutputTokens: 600 },
+                  }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (text) { AI_STATUS.set('gemini'); return text; }
+                }
+                throw new Error('Gemini chat returned ' + res.status);
+              } catch (e) { console.warn('Mentor chat (Gemini) error:', e); AI_STATUS.set('fallback', String(e.message || e)); }
+            }
+            if (AI_KEYS.openai) {
+              try {
+                const chatHistory = history.slice(-6).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
+                const res = await fetch(AI_CONFIG.openaiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_KEYS.openai}` },
+                  body: JSON.stringify({
+                    model: AI_CONFIG.openaiModel,
+                    messages: [{ role: 'system', content: sys }, ...chatHistory, { role: 'user', content: msg }],
+                    max_tokens: 600, temperature: 0.8,
+                  }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  const text = data.choices?.[0]?.message?.content;
+                  if (text) { AI_STATUS.set('openai'); return text; }
+                }
+                throw new Error('OpenAI chat returned ' + res.status);
+              } catch (e) { console.warn('Mentor chat (OpenAI) error:', e); AI_STATUS.set('fallback', String(e.message || e)); }
+            }
+            AI_STATUS.set('fallback', AI_KEYS.gemini || AI_KEYS.openai ? AI_STATUS.lastError : 'No API key');
+            return smartMockResponse(msg);
+          };
+
+          const send = async (overrideMsg) => {
+            const raw = (overrideMsg ?? input).trim();
+            if (!raw || loading) return;
             setInput('');
-            setMessages(prev => [...prev, { role: 'user', content: msg }]);
+            setMessages(prev => [...prev, { role: 'user', content: raw }]);
             setLoading(true);
+
+            // Update profile chat memory
+            if (updateProfile) {
+              const newTopics = extractTopics(raw);
+              if (newTopics.length) {
+                const merged = [...(profile?.chatTopics || []), ...newTopics];
+                const dedup = [...new Set(merged)].slice(-12);
+                updateProfile({ chatTopics: dedup });
+              }
+            }
+
             try {
-              const response = await chatWithMentor(msg, messages);
+              const response = await callMentor(raw, messages);
               setMessages(prev => [...prev, { role: 'assistant', content: response }]);
             } catch (e) {
               setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I had trouble processing that. Try again!' }]);
             }
             setLoading(false);
+
+            // Detect quest-change signals and adapt the active quest in the background.
+            const signal = detectQuestSignal(raw);
+            if (signal && dispatch && profile) {
+              setAdaptingFromChat(true);
+              const next = await adaptNextQuest({ profile, state, completedTask: null, signal, chatContext: raw });
+              setAdaptingFromChat(false);
+              if (next) {
+                dispatch({ type: 'adapt_current_quest', quest: next, reason: `chat: ${signal}` });
+                setMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: `Heard you. I just rewrote your active quest to be **${signal === 'easier' ? 'more approachable' : signal === 'harder' ? 'more ambitious' : signal === 'pivot' ? 'aligned with what you want' : 'sharper and more personal'}**: "${next.task}"`,
+                }]);
+              }
+            }
           };
 
           return (
@@ -2325,23 +3289,30 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               </button>
 
               {open && (
-                <div className="fixed bottom-24 right-6 z-50 w-[380px] max-h-[520px] glass rounded-2xl overflow-hidden flex flex-col animate-fade-up" style={{ animationDuration: '0.3s', border: '1px solid rgba(255,138,61,0.15)' }}>
+                <div className="fixed bottom-24 right-6 z-50 w-[400px] max-h-[580px] glass rounded-2xl overflow-hidden flex flex-col animate-fade-up" style={{ animationDuration: '0.3s', border: '1px solid rgba(255,138,61,0.15)' }}>
                   <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', border: '1px solid rgba(255,138,61,0.25)' }}>
                       <Sparkles size={16} style={{ color: '#FFC169' }} />
                     </div>
-                    <div>
-                      <div className="text-sm font-semibold">Forge AI Mentor</div>
-                      <div className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--text-subtle)' }}>
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#34D399', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
-                        Online · ITHS Edition
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold flex items-center gap-2">
+                        Forge AI Mentor
+                        {adaptingFromChat && (
+                          <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(129,140,248,0.18)', color: '#C4C9FF', letterSpacing: '0.16em' }}>
+                            Tuning quest…
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] flex items-center gap-1.5 truncate" style={{ color: 'var(--text-subtle)' }}>
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#34D399', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+                        {profile?.track ? `${TRACKS[profile.track]?.label} · ${LEVELS[profile.level]?.label}` : 'Online · ITHS Edition'}
                       </div>
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ maxHeight: 360 }}>
                     {messages.map((m, i) => (
                       <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className="rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed max-w-[85%]" style={m.role === 'user' ? { background: 'linear-gradient(135deg, var(--primary-from), var(--primary-to))', color: '#1a0c00' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                        <div className="rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed max-w-[85%] whitespace-pre-wrap" style={m.role === 'user' ? { background: 'linear-gradient(135deg, var(--primary-from), var(--primary-to))', color: '#1a0c00' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text)' }}>
                           {m.content}
                         </div>
                       </div>
@@ -2359,6 +3330,25 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     )}
                     <div ref={endRef} />
                   </div>
+                  {/* Suggested prompts */}
+                  {messages.length <= 1 && (
+                    <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => send(s)}
+                          className="text-[11px] px-2.5 py-1 rounded-full focus-ring"
+                          style={{
+                            background: 'rgba(255,138,61,0.06)',
+                            border: '1px solid rgba(255,138,61,0.2)',
+                            color: '#FFC169',
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
                     <div className="flex gap-2">
                       <input
@@ -2366,12 +3356,12 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && send()}
-                        placeholder="Ask about careers, skills, college..."
+                        placeholder={profile?.track ? `Ask about ${TRACKS[profile.track]?.label.toLowerCase()}, careers, college…` : 'Ask about careers, skills, college…'}
                         className="input-minimal flex-1 py-2.5 px-3 rounded-xl text-sm focus:outline-none"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}
                       />
                       <button
-                        onClick={send}
+                        onClick={() => send()}
                         disabled={loading || !input.trim()}
                         className="w-10 h-10 rounded-xl flex items-center justify-center focus-ring"
                         style={{
@@ -2383,7 +3373,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                         <ArrowRight size={16} style={{ color: input.trim() ? '#1a0c00' : 'var(--text-subtle)' }} strokeWidth={2.5} />
                       </button>
                     </div>
-                    <div className="text-[10px] mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>Powered by Forge AI · Built for ITHS</div>
+                    <div className="text-[10px] mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>
+                      Tell me "too hard", "too easy", or "switch to X" — I'll rewrite your active quest live.
+                    </div>
                   </div>
                 </div>
               )}
@@ -2436,8 +3428,19 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               wins: [newWin, ...state.wins].slice(0, 3),
             };
           }
-          if (action.type === "set_goal") {
-            return { ...state, goal: action.goal };
+          if (action.type === "adapt_current_quest") {
+            // Replace the current (or next future) quest with an AI-rewritten version, mark adapted.
+            const targetIdx = state.roadmap.findIndex(w => w.status === 'current');
+            if (targetIdx === -1) return state;
+            const newRoadmap = state.roadmap.map((w, i) =>
+              i === targetIdx
+                ? { ...w, ...action.quest, week: w.week, status: w.status, adapted: true, adaptReason: action.reason || null }
+                : w
+            );
+            return { ...state, roadmap: newRoadmap, lastAdaptAt: Date.now() };
+          }
+          if (action.type === "set_roadmap") {
+            return { ...state, roadmap: action.roadmap };
           }
           return state;
         };
@@ -2565,7 +3568,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           const [user, setUser] = useState(null);
           const [screen, setScreen] = useState("landing");
           const [state, setState] = useState(initialState);
-          const [goal, setGoal] = useState("");
+          const [profile, setProfile] = useState(null);
           const [loaded, setLoaded] = useState(false);
 
           useEffect(() => {
@@ -2573,9 +3576,14 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             if (session) {
               setUser(session);
               const saved = DB.loadData(session.email);
-              if (saved && saved.goal) {
+              if (saved && saved.profile?.goal) {
                 setState(saved.state || initialState);
-                setGoal(saved.goal);
+                setProfile(saved.profile);
+                setScreen('dashboard');
+              } else if (saved && saved.goal) {
+                // legacy migration: old shape stored bare goal
+                setState(saved.state || initialState);
+                setProfile({ goal: saved.goal, track: 'web', level: 'beginner', timeCommitment: '10', outcome: 'portfolio', chatTopics: [] });
                 setScreen('dashboard');
               } else {
                 setScreen('onboarding');
@@ -2585,13 +3593,17 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           }, []);
 
           useEffect(() => {
-            if (user && goal && screen === 'dashboard') {
-              DB.saveData(user.email, { state, goal });
+            if (user && profile?.goal && screen === 'dashboard') {
+              DB.saveData(user.email, { state, profile });
             }
-          }, [state, goal, user, screen]);
+          }, [state, profile, user, screen]);
 
           const dispatch = useCallback((action) => {
             setState((s) => reducer(s, action));
+          }, []);
+
+          const updateProfile = useCallback((patch) => {
+            setProfile(p => p ? { ...p, ...patch } : p);
           }, []);
 
           const navigate = (next) => {
@@ -2604,9 +3616,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           const onAuth = (u) => {
             setUser(u);
             const saved = DB.loadData(u.email);
-            if (saved && saved.goal) {
+            if (saved && saved.profile?.goal) {
               setState(saved.state || initialState);
-              setGoal(saved.goal);
+              setProfile(saved.profile);
               navigate('dashboard');
             } else {
               navigate('onboarding');
@@ -2617,11 +3629,14 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             DB.clearSession();
             setUser(null);
             setState(initialState);
-            setGoal('');
+            setProfile(null);
             navigate('landing');
           };
 
-          const onGoalSubmit = (g) => { setGoal(g); navigate("forging"); };
+          const onProfileSubmit = (p) => {
+            setProfile({ ...p, chatTopics: [] });
+            navigate('forging');
+          };
           const onForgeDone = (generatedRoadmap) => {
             if (generatedRoadmap && Array.isArray(generatedRoadmap)) {
               setState({
@@ -2632,7 +3647,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                 currentWeek: 1,
                 roadmap: generatedRoadmap,
                 wins: [
-                  { title: 'Set your goal: "' + goal + '"', xp: 50, when: 'just now' },
+                  { title: 'Set your goal: "' + (profile?.goal || '') + '"', xp: 50, when: 'just now' },
                 ],
               });
             }
@@ -2648,16 +3663,18 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               <div key={screen} className="animate-fade-in">
                 {screen === "landing" && <Landing onStart={startFlow} />}
                 {screen === "auth" && <AuthScreen onAuth={onAuth} />}
-                {screen === "onboarding" && <Onboarding onSubmit={onGoalSubmit} />}
-                {screen === "forging" && <ForgingLoader goal={goal} onDone={onForgeDone} />}
+                {screen === "onboarding" && <Onboarding onSubmit={onProfileSubmit} />}
+                {screen === "forging" && <ForgingLoader profile={profile} onDone={onForgeDone} />}
                 {screen === "dashboard" && (
-                  <Dashboard state={state} dispatch={dispatch} onNav={navigate} goal={goal} user={user} signOut={signOut} />
+                  <Dashboard state={state} dispatch={dispatch} onNav={navigate} profile={profile} user={user} signOut={signOut} />
                 )}
                 {screen === "portfolio" && <Portfolio onNav={navigate} state={state} user={user} signOut={signOut} />}
                 {screen === "roadmap" && <Roadmap onNav={navigate} state={state} user={user} signOut={signOut} />}
                 {screen === "leaderboard" && <Leaderboard onNav={navigate} state={state} user={user} signOut={signOut} />}
               </div>
-              {screen !== 'landing' && screen !== 'onboarding' && screen !== 'forging' && screen !== 'auth' && <ChatPanel />}
+              {screen !== 'landing' && screen !== 'onboarding' && screen !== 'forging' && screen !== 'auth' && (
+                <ChatPanel profile={profile} state={state} dispatch={dispatch} updateProfile={updateProfile} />
+              )}
             </>
           );
         }
