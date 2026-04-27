@@ -1805,11 +1805,29 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
         };
 
         /* ── Portfolio generator ───────────────────────────────────────────────────── */
-        const Portfolio = ({ onNav, state }) => {
+        const Portfolio = ({ onNav, state, user, signOut }) => {
           const [url, setUrl] = useState("");
           const [loading, setLoading] = useState(false);
           const [bullet, setBullet] = useState("");
           const [copied, setCopied] = useState(false);
+          const [savedBullets, setSavedBullets] = useState([]);
+          const [editIdx, setEditIdx] = useState(null);
+          const [editText, setEditText] = useState("");
+
+          // Load saved portfolio from localStorage
+          useEffect(() => {
+            if (user?.email) {
+              const saved = JSON.parse(localStorage.getItem('forge_portfolio_' + user.email) || '[]');
+              setSavedBullets(saved);
+            }
+          }, [user]);
+
+          // Persist whenever savedBullets changes
+          useEffect(() => {
+            if (user?.email && savedBullets.length >= 0) {
+              localStorage.setItem('forge_portfolio_' + user.email, JSON.stringify(savedBullets));
+            }
+          }, [savedBullets, user]);
 
           const generate = async () => {
             if (!url.trim()) return;
@@ -1824,46 +1842,68 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
             setLoading(false);
           };
 
-          const copy = () => {
-            navigator.clipboard?.writeText(bullet);
+          const copy = (text) => {
+            navigator.clipboard?.writeText(text || bullet);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          };
+
+          const saveBullet = () => {
+            if (!bullet) return;
+            setSavedBullets(prev => [{ url: url.trim(), bullet, savedAt: Date.now() }, ...prev]);
+            setBullet("");
+            setUrl("");
+          };
+
+          const deleteBullet = (idx) => {
+            setSavedBullets(prev => prev.filter((_, i) => i !== idx));
+          };
+
+          const startEdit = (idx) => {
+            setEditIdx(idx);
+            setEditText(savedBullets[idx].bullet);
+          };
+
+          const saveEdit = () => {
+            setSavedBullets(prev => prev.map((b, i) => i === editIdx ? { ...b, bullet: editText } : b));
+            setEditIdx(null);
+            setEditText("");
+          };
+
+          const copyAll = () => {
+            const all = savedBullets.map(b => '• ' + b.bullet).join('\n');
+            navigator.clipboard?.writeText(all);
             setCopied(true);
             setTimeout(() => setCopied(false), 1800);
           };
 
           return (
             <div>
-              <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+              <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} user={user} signOut={signOut} />
               <main className="max-w-4xl mx-auto px-6 py-12">
                 <div className="mb-10 animate-fade-up">
                   <div className="inline-flex mb-4">
                     <GradientIcon Icon={Github} size={20} />
                   </div>
                   <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: "clamp(32px, 4vw, 44px)", lineHeight: 1.05 }}>
-                    Portfolio generator
+                    Portfolio builder
                   </h1>
                   <p style={{ color: "var(--text-muted)" }} className="max-w-xl">
-                    Paste a GitHub repo URL. Forge reads your README and turns it into a sharp,
-                    recruiter-ready resume bullet.
+                    Paste a GitHub repo URL. Forge uses AI to read your README and generate a sharp,
+                    recruiter-ready resume bullet. Save, edit, and build your portfolio.
                   </p>
                 </div>
 
+                {/* Generator */}
                 <div className="glass top-rule rounded-3xl p-6 md:p-7 animate-fade-up" style={{ animationDelay: "0.1s", animationFillMode: "both" }}>
                   <label className="text-xs uppercase tracking-widest block mb-3" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
                     GitHub URL
                   </label>
-                  <div
-                    className="flex flex-col sm:flex-row items-stretch gap-3 p-2 rounded-2xl"
-                    style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
-                  >
+                  <div className="flex flex-col sm:flex-row items-stretch gap-3 p-2 rounded-2xl" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}>
                     <div className="flex items-center gap-3 flex-1 px-3">
                       <Github size={16} style={{ color: "var(--text-subtle)" }} />
-                      <input
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && generate()}
-                        placeholder="https://github.com/yourname/your-project"
-                        className="input-minimal flex-1 py-3 text-base focus:outline-none"
-                      />
+                      <input value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && generate()}
+                        placeholder="https://github.com/yourname/your-project" className="input-minimal flex-1 py-3 text-base focus:outline-none" />
                     </div>
                     <PrimaryButton onClick={generate}>
                       {loading ? "Generating…" : "Generate bullet"}
@@ -1889,56 +1929,36 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   )}
 
                   {bullet && !loading && (
-                    <div
-                      className="relative glass top-rule rounded-3xl p-7 animate-fade-up"
-                      style={{ animationDuration: "0.6s" }}
-                    >
-                      {/* Animated gradient border */}
-                      <div
-                        className="absolute inset-0 rounded-3xl pointer-events-none"
-                        style={{
-                          padding: 1,
-                          background: "linear-gradient(135deg, rgba(255,107,44,0.5), rgba(255,184,0,0.3), rgba(129,140,248,0.3))",
-                          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-                          WebkitMaskComposite: "xor",
-                          maskComposite: "exclude",
-                        }}
-                      />
+                    <div className="relative glass top-rule rounded-3xl p-7 animate-fade-up" style={{ animationDuration: "0.6s" }}>
+                      <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{
+                        padding: 1, background: "linear-gradient(135deg, rgba(255,107,44,0.5), rgba(255,184,0,0.3), rgba(129,140,248,0.3))",
+                        WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude",
+                      }} />
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                           <Sparkles size={15} style={{ color: "#FFC169" }} />
-                          <span className="text-xs uppercase tracking-widest" style={{ color: "#FFC169", letterSpacing: "0.18em" }}>
-                            Resume bullet
-                          </span>
+                          <span className="text-xs uppercase tracking-widest" style={{ color: "#FFC169", letterSpacing: "0.18em" }}>Generated bullet</span>
                         </div>
-                        <button
-                          onClick={copy}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
-                          style={{
-                            background: "rgba(255,255,255,0.03)",
-                            border: "1px solid var(--border)",
-                            color: copied ? "#34D399" : "var(--text-muted)",
-                          }}
-                        >
-                          {copied ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />}
-                          {copied ? "Copied" : "Copy"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => copy()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: copied ? "#34D399" : "var(--text-muted)" }}>
+                            {copied ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+                          </button>
+                          <button onClick={saveBullet} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
+                            style={{ background: "rgba(255,138,61,0.1)", border: "1px solid rgba(255,138,61,0.25)", color: "#FFC169" }}>
+                            <Check size={13} strokeWidth={2.6} /> Save to portfolio
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-lg leading-relaxed" style={{ letterSpacing: "-0.01em" }}>
-                        {bullet}
-                      </p>
+                      <p className="text-lg leading-relaxed" style={{ letterSpacing: "-0.01em" }}>{bullet}</p>
                     </div>
                   )}
 
-                  {!loading && !bullet && (
+                  {!loading && !bullet && savedBullets.length === 0 && (
                     <div className="mt-6 flex flex-col items-center text-center py-10">
-                      <div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                        style={{
-                          background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.18), rgba(255,107,44,0.03))",
-                          border: "1px solid rgba(255,138,61,0.18)",
-                        }}
-                      >
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{
+                        background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.18), rgba(255,107,44,0.03))", border: "1px solid rgba(255,138,61,0.18)",
+                      }}>
                         <Github size={26} style={{ color: "#FFC169" }} />
                       </div>
                       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1947,15 +1967,74 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                     </div>
                   )}
                 </div>
+
+                {/* Saved Portfolio */}
+                {savedBullets.length > 0 && (
+                  <div className="mt-12 animate-fade-up" style={{ animationDelay: "0.15s", animationFillMode: "both" }}>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="font-display font-semibold text-xl tracking-tight">Your portfolio</h2>
+                        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>{savedBullets.length} project{savedBullets.length !== 1 ? 's' : ''} saved</p>
+                      </div>
+                      <button onClick={copyAll} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm focus-ring transition-colors"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                        <Copy size={14} /> Copy all
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {savedBullets.map((item, i) => (
+                        <div key={item.savedAt + i} className="glass top-rule rounded-2xl p-5 group" style={{ animation: `fadeUp 0.4s cubic-bezier(.2,.8,.2,1) ${0.04 * i}s both` }}>
+                          {editIdx === i ? (
+                            <div>
+                              <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3}
+                                className="input-minimal w-full p-3 rounded-xl text-sm focus:outline-none mb-3"
+                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }} />
+                              <div className="flex gap-2">
+                                <button onClick={saveEdit} className="px-3 py-1.5 rounded-full text-xs" style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", color: "#34D399" }}>Save</button>
+                                <button onClick={() => setEditIdx(null)} className="px-3 py-1.5 rounded-full text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-start justify-between gap-4">
+                                <p className="text-sm leading-relaxed flex-1">{item.bullet}</p>
+                                <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => copy(item.bullet)} className="p-1.5 rounded-lg hover:bg-white/5" title="Copy">
+                                    <Copy size={13} style={{ color: "var(--text-subtle)" }} />
+                                  </button>
+                                  <button onClick={() => startEdit(i)} className="p-1.5 rounded-lg hover:bg-white/5" title="Edit">
+                                    <Settings size={13} style={{ color: "var(--text-subtle)" }} />
+                                  </button>
+                                  <button onClick={() => deleteBullet(i)} className="p-1.5 rounded-lg hover:bg-white/5" title="Delete">
+                                    <LogOut size={13} style={{ color: "var(--danger)" }} />
+                                  </button>
+                                </div>
+                              </div>
+                              {item.url && (
+                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: "var(--text-subtle)" }}>
+                                  <Github size={11} />
+                                  <span className="truncate">{item.url}</span>
+                                  <span>·</span>
+                                  <span>{new Date(item.savedAt).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </main>
             </div>
           );
         };
 
         /* ── Roadmap full page ──────────────────────────────────────────────────────── */
-        const Roadmap = ({ onNav, state }) => (
+        const Roadmap = ({ onNav, state, user, signOut }) => (
           <div>
-            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} user={user} signOut={signOut} />
             <main className="max-w-3xl mx-auto px-6 py-12">
               <div className="mb-10 animate-fade-up">
                 <div className="inline-flex mb-4">
@@ -2067,9 +2146,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           { rank: 10, name: 'Zoe H.', xp: 720, level: 3, streak: 7, goal: 'Stony Brook CS' },
         ];
 
-        const Leaderboard = ({ onNav, state }) => (
+        const Leaderboard = ({ onNav, state, user, signOut }) => (
           <div>
-            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} user={user} signOut={signOut} />
             <main className="max-w-4xl mx-auto px-6 py-12">
               <div className="mb-10 animate-fade-up">
                 <div className="inline-flex mb-4"><GradientIcon Icon={Trophy} size={20} /></div>
@@ -2498,9 +2577,9 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                 {screen === "dashboard" && (
                   <Dashboard state={state} dispatch={dispatch} onNav={navigate} goal={goal} user={user} signOut={signOut} />
                 )}
-                {screen === "portfolio" && <Portfolio onNav={navigate} state={state} />}
-                {screen === "roadmap" && <Roadmap onNav={navigate} state={state} />}
-                {screen === "leaderboard" && <Leaderboard onNav={navigate} state={state} />}
+                {screen === "portfolio" && <Portfolio onNav={navigate} state={state} user={user} signOut={signOut} />}
+                {screen === "roadmap" && <Roadmap onNav={navigate} state={state} user={user} signOut={signOut} />}
+                {screen === "leaderboard" && <Leaderboard onNav={navigate} state={state} user={user} signOut={signOut} />}
               </div>
               {screen !== 'landing' && screen !== 'onboarding' && screen !== 'forging' && screen !== 'auth' && <ChatPanel />}
             </>
