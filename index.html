@@ -1,0 +1,2514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forge — AI Career Copilot for ITHS Students</title>
+    <meta name="description" content="Forge is an AI-powered career copilot built for Information Technology High School students. Get personalized 12-week roadmaps, auto-generated portfolios, and an AI mentor.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔨</text></svg>">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1';
+        window.lucideReact = LucideReact;
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
+    </style>
+</head>
+<body class="bg-[#08080C] text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { 
+            useState, useEffect, useRef, useCallback, useMemo, Fragment
+        } = React;
+
+        const {
+            ArrowRight,
+            Flame,
+            Sparkles,
+            Target,
+            Trophy,
+            Check,
+            Github,
+            Hammer,
+            Zap,
+            Compass,
+            Rocket,
+            Copy,
+            ChevronRight,
+            CircleDot,
+            Lock,
+            User,
+            LogOut,
+            Settings,
+        } = window.lucideReact;
+
+        /* ────────────────────────────────────────────────────────────────────────────
+           FORGE — AI-powered career copilot for ITHS students
+           Built for the "Make ITHS Better" Hackathon 2026
+           ──────────────────────────────────────────────────────────────────────────── */
+
+        /* ── AI Service Layer ───────────────────────────────────────────────────────── */
+        const AI_CONFIG = {
+          provider: 'gemini',
+          geminiKey: 'AIzaSyCan43RuVjvyHE1T3ohTDzwXb_H0Ghdp6E',
+          openaiKey: '',
+          geminiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+          openaiUrl: 'https://api.openai.com/v1/chat/completions',
+        };
+
+        const callAI = async (prompt, systemPrompt = '') => {
+          const sys = systemPrompt || 'You are Forge AI, a career mentor built for students at Information Technology High School (ITHS) in Long Island City, NYC. You give specific, actionable advice about tech careers, college prep, portfolio building, and skill development. Be encouraging but direct. Keep responses concise (2-4 sentences unless asked for more).';
+          
+          if (AI_CONFIG.geminiKey) {
+            try {
+              const res = await fetch(`${AI_CONFIG.geminiUrl}?key=${AI_CONFIG.geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: sys }] },
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { temperature: 0.8, maxOutputTokens: 1024 }
+                })
+              });
+              const data = await res.json();
+              return data.candidates?.[0]?.content?.parts?.[0]?.text || 'AI response unavailable.';
+            } catch (e) { console.warn('Gemini error:', e); }
+          }
+          if (AI_CONFIG.openaiKey) {
+            try {
+              const res = await fetch(AI_CONFIG.openaiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_CONFIG.openaiKey}` },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
+                  max_tokens: 1024, temperature: 0.8
+                })
+              });
+              const data = await res.json();
+              return data.choices?.[0]?.message?.content || 'AI response unavailable.';
+            } catch (e) { console.warn('OpenAI error:', e); }
+          }
+          return smartMockResponse(prompt);
+        };
+
+        const smartMockResponse = (prompt) => {
+          const p = prompt.toLowerCase();
+          if (p.includes('roadmap') || p.includes('plan') || p.includes('goal')) {
+            return JSON.stringify([
+              { week: 1, title: 'Foundation Sprint', task: 'Set up your dev environment, create a GitHub profile, and push your first repo with a professional README', xp: 80 },
+              { week: 2, title: 'Build Something Real', task: 'Create a personal portfolio website showcasing 3 projects — deploy it live on GitHub Pages', xp: 150 },
+              { week: 3, title: 'Version Control Mastery', task: 'Learn branching, pull requests, and contribute to one open-source issue on GitHub', xp: 180 },
+              { week: 4, title: 'Frontend Deep Dive', task: 'Build a responsive React component library with at least 5 reusable components', xp: 200 },
+              { week: 5, title: 'API Integration', task: 'Connect your project to a public API and build a data-driven feature', xp: 220 },
+              { week: 6, title: 'Database Fundamentals', task: 'Add persistent storage to your app using Firebase or Supabase', xp: 240 },
+              { week: 7, title: 'Auth & Security', task: 'Implement user authentication with Google/GitHub OAuth in your project', xp: 260 },
+              { week: 8, title: 'Build in Public', task: 'Write a build log, share your progress on social media, and get feedback', xp: 280 },
+              { week: 9, title: 'Internship Prep', task: 'Research 10 companies, tailor your resume, and send 5 outreach emails', xp: 300 },
+              { week: 10, title: 'Interview Ready', task: 'Complete 5 LeetCode problems and do 2 mock behavioral interviews', xp: 320 },
+              { week: 11, title: 'Portfolio Polish', task: 'Refine your top 3 projects, record demo videos, and write case studies', xp: 340 },
+              { week: 12, title: 'Launch & Apply', task: 'Submit applications to 6 programs/internships and celebrate your growth', xp: 400 },
+            ]);
+          }
+          if (p.includes('portfolio') || p.includes('github') || p.includes('bullet') || p.includes('resume')) {
+            const bullets = [
+              'Architected and deployed a full-stack web application using React, Node.js, and PostgreSQL — featuring real-time data sync, OAuth authentication, and CI/CD pipeline via GitHub Actions. Achieved 200+ active users within the first month through strategic community outreach.',
+              'Designed and built a responsive portfolio platform with dynamic project showcases, interactive skill visualizations, and automated deployment. Leveraged modern CSS techniques including glassmorphism and micro-animations for a premium user experience.',
+              'Developed an AI-powered productivity tool that generates personalized learning roadmaps using the Gemini API. Implemented a gamification system with XP tracking, streak mechanics, and achievement unlocks to drive consistent user engagement.'
+            ];
+            return bullets[Math.floor(Math.random() * bullets.length)];
+          }
+          if (p.includes('react') || p.includes('learn') || p.includes('skill')) return 'For an ITHS student, I recommend starting with React fundamentals — build 3 small projects before moving to Next.js. Focus on component thinking, state management with hooks, and API integration. Your ITHS coursework gives you a strong foundation to build on.';
+          if (p.includes('college') || p.includes('university')) return 'Top CS programs like Cornell Tech, NYU Tandon, and Stony Brook look for students with real projects, not just grades. Build 2-3 polished portfolio projects, contribute to open source, and write about what you learned. Your ITHS background in IT already sets you apart.';
+          if (p.includes('internship') || p.includes('job')) return 'Start with local NYC startups — they love hungry ITHS students. Check AngelList, LinkedIn, and Handshake. Lead with your projects, not your GPA. A deployed app is worth more than a 4.0 to most tech companies.';
+          return 'Great question! As an ITHS student, you have a unique advantage — you\'re already in a tech-focused environment. Focus on building real projects, contributing to open source, and connecting with the NYC tech community. Every line of code you ship is a step closer to your goal.';
+        };
+
+        const generateRoadmap = async (goal) => {
+          const prompt = `Generate a 12-week career roadmap for an ITHS (Information Technology High School) student whose goal is: "${goal}".
+
+Return ONLY a valid JSON array with exactly 12 objects. Each object must have these exact keys:
+- "week": number (1-12)
+- "title": string (3-5 words, catchy title)
+- "task": string (one specific actionable task, 15-25 words)
+- "xp": number (starting at 80, increasing by 20-40 each week)
+
+Example format:
+[{"week":1,"title":"Setup Sprint","task":"Install VS Code, create GitHub account, and push your first repo","xp":80}]
+
+Important: Output ONLY the JSON array. No markdown, no explanation, no code fences.`;
+          
+          try {
+            const response = await callAI(prompt, 'You are a JSON API. You output ONLY valid JSON arrays. Never use markdown formatting. Never add explanation text. Output raw JSON only.');
+            // Try multiple extraction strategies
+            let jsonStr = response;
+            // Remove markdown code fences
+            jsonStr = jsonStr.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+            // Try to find the array in the response
+            const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+            if (arrayMatch) jsonStr = arrayMatch[0];
+            jsonStr = jsonStr.trim();
+            
+            const parsed = JSON.parse(jsonStr);
+            if (Array.isArray(parsed) && parsed.length >= 8) {
+              return parsed.slice(0, 12);
+            }
+          } catch (e) { 
+            console.warn('AI roadmap parse error, using smart fallback:', e); 
+          }
+          return JSON.parse(smartMockResponse('roadmap'));
+        };
+
+        const generateBullet = async (url) => {
+          const prompt = `Generate a professional resume bullet point for a high school student's portfolio based on this GitHub project: ${url}. Write ONE impressive, specific bullet point (2-3 sentences) that highlights technical skills, impact, and technologies used. Make it sound like a top CS applicant wrote it.`;
+          return await callAI(prompt);
+        };
+
+        const chatWithMentor = async (message, history = []) => {
+          const context = history.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
+          const prompt = context ? `Previous conversation:\n${context}\n\nStudent: ${message}` : message;
+          return await callAI(prompt);
+        };
+
+        /* ── Global styles, fonts, keyframes ────────────────────────────────────────── */
+        const GlobalStyles = () => (
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:wght@500;600;700;800&display=swap');
+
+            :root {
+              --bg: #08080C;
+              --surface: #131318;
+              --surface-2: #18181F;
+              --primary-from: #FF6B2C;
+              --primary-mid: #FF8A3D;
+              --primary-to: #FFB800;
+              --secondary: #818CF8;
+              --text: #FAFAFA;
+              --text-muted: #A1A1AA;
+              --text-subtle: #71717A;
+              --border: rgba(255,255,255,0.06);
+              --border-strong: rgba(255,255,255,0.10);
+              --success-from: #34D399;
+              --success-to: #10B981;
+              --danger: #F43F5E;
+            }
+
+            * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+            html, body, #root { background: var(--bg); color: var(--text); }
+            body { font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+
+            .font-display { font-family: 'Inter Tight', 'Inter', sans-serif; letter-spacing: -0.04em; }
+            .tabular { font-feature-settings: 'tnum' 1, 'cv11' 1; font-variant-numeric: tabular-nums; }
+
+            /* Scrollbar */
+            ::-webkit-scrollbar { width: 10px; height: 10px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb {
+              background: linear-gradient(180deg, rgba(255,107,44,0.35), rgba(255,184,0,0.35));
+              border-radius: 999px;
+              border: 2px solid var(--bg);
+            }
+            ::-webkit-scrollbar-thumb:hover {
+              background: linear-gradient(180deg, rgba(255,107,44,0.6), rgba(255,184,0,0.6));
+            }
+
+            /* Selection */
+            ::selection { background: rgba(255,138,61,0.3); color: #fff; }
+
+            /* Ambient mesh gradient drift */
+            @keyframes meshDrift {
+              0%, 100% { transform: translate3d(0,0,0) scale(1); }
+              33% { transform: translate3d(2%, -3%, 0) scale(1.05); }
+              66% { transform: translate3d(-2%, 2%, 0) scale(0.97); }
+            }
+            @keyframes meshDrift2 {
+              0%, 100% { transform: translate3d(0,0,0) scale(1); opacity: 0.6; }
+              50% { transform: translate3d(-3%, 4%, 0) scale(1.08); opacity: 0.85; }
+            }
+            @keyframes orbFloat {
+              0%, 100% { transform: translate3d(0,0,0); }
+              50% { transform: translate3d(20px, -30px, 0); }
+            }
+            @keyframes orbFloat2 {
+              0%, 100% { transform: translate3d(0,0,0); }
+              50% { transform: translate3d(-25px, 20px, 0); }
+            }
+
+            /* Pulse glow on CTAs */
+            @keyframes glowPulse {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(255,138,61,0.45), 0 18px 50px -12px rgba(255,107,44,0.45); }
+              50% { box-shadow: 0 0 0 14px rgba(255,138,61,0), 0 22px 60px -10px rgba(255,107,44,0.6); }
+            }
+
+            /* Subtle pulse on hero card border */
+            @keyframes borderPulse {
+              0%, 100% { opacity: 0.55; }
+              50% { opacity: 1; }
+            }
+
+            /* Number gradient pulse on change */
+            @keyframes numPulse {
+              0% { filter: brightness(1) saturate(1); transform: scale(1); }
+              30% { filter: brightness(1.4) saturate(1.3); transform: scale(1.06); }
+              100% { filter: brightness(1) saturate(1); transform: scale(1); }
+            }
+
+            /* Forging text shimmer */
+            @keyframes shimmer {
+              0% { background-position: -200% center; }
+              100% { background-position: 200% center; }
+            }
+
+            /* Mount fade-up */
+            @keyframes fadeUp {
+              from { opacity: 0; transform: translate3d(0, 12px, 0); }
+              to { opacity: 1; transform: translate3d(0, 0, 0); }
+            }
+
+            /* Mount fade only */
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+            /* Sweep across hero card on complete */
+            @keyframes goldSweep {
+              0% { transform: translateX(-110%) skewX(-12deg); opacity: 0; }
+              30% { opacity: 1; }
+              100% { transform: translateX(110%) skewX(-12deg); opacity: 0; }
+            }
+
+            /* Card slide off on completion */
+            @keyframes slideOff {
+              0% { transform: translate3d(0,0,0); opacity: 1; }
+              100% { transform: translate3d(0, -40px, 0); opacity: 0; filter: blur(8px); }
+            }
+            @keyframes slideIn {
+              0% { transform: translate3d(0, 30px, 0); opacity: 0; filter: blur(8px); }
+              100% { transform: translate3d(0, 0, 0); opacity: 1; filter: blur(0); }
+            }
+
+            /* Skill tree node glow ripple */
+            @keyframes nodeRipple {
+              0% { box-shadow: 0 0 0 0 rgba(255,138,61,0.55); }
+              100% { box-shadow: 0 0 0 18px rgba(255,138,61,0); }
+            }
+
+            /* Words stagger for hero headline */
+            .word-stagger > span {
+              display: inline-block;
+              opacity: 0;
+              transform: translate3d(0, 18px, 0);
+              animation: fadeUp 0.7s cubic-bezier(.2,.8,.2,1) forwards;
+            }
+
+            /* Chip hover */
+            .chip {
+              transition: transform 250ms cubic-bezier(.2,.8,.2,1), background 250ms, border-color 250ms;
+            }
+            .chip:hover {
+              transform: translateY(-2px);
+              background: rgba(255,255,255,0.04);
+              border-color: rgba(255,138,61,0.35);
+            }
+
+            /* Glassmorphism card with inner top highlight */
+            .glass {
+              background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 14%), var(--surface);
+              backdrop-filter: blur(20px);
+              -webkit-backdrop-filter: blur(20px);
+              border: 1px solid var(--border);
+              box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.04),
+                0 1px 1px rgba(0,0,0,0.4),
+                0 8px 24px -10px rgba(0,0,0,0.6);
+            }
+            .glass-hover {
+              transition: transform 320ms cubic-bezier(.2,.8,.2,1),
+                          border-color 320ms,
+                          box-shadow 320ms;
+            }
+            .glass-hover:hover {
+              transform: translateY(-4px) scale(1.005);
+              border-color: rgba(255,138,61,0.18);
+              box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.06),
+                0 1px 1px rgba(0,0,0,0.4),
+                0 30px 60px -20px rgba(255,107,44,0.18),
+                0 0 0 1px rgba(255,138,61,0.08);
+            }
+
+            /* Gradient text */
+            .grad-text {
+              background: linear-gradient(135deg, var(--primary-from) 0%, var(--primary-to) 100%);
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            }
+            .grad-text-shimmer {
+              background: linear-gradient(90deg,
+                var(--primary-from) 0%,
+                var(--primary-to) 25%,
+                #fff 50%,
+                var(--primary-to) 75%,
+                var(--primary-from) 100%);
+              background-size: 200% auto;
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+              animation: shimmer 3.5s linear infinite;
+            }
+
+            /* Gradient pill button */
+            .btn-primary {
+              position: relative;
+              background: linear-gradient(135deg, var(--primary-from) 0%, var(--primary-to) 100%);
+              color: #1a0c00;
+              font-weight: 600;
+              letter-spacing: -0.01em;
+              box-shadow: 0 12px 36px -10px rgba(255,107,44,0.55), inset 0 1px 0 rgba(255,255,255,0.45);
+              transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms;
+            }
+            .btn-primary:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 16px 44px -8px rgba(255,107,44,0.7), inset 0 1px 0 rgba(255,255,255,0.5);
+            }
+            .btn-primary:active { transform: translateY(0) scale(0.97); }
+
+            .btn-ghost {
+              background: rgba(255,255,255,0.03);
+              border: 1px solid var(--border);
+              color: var(--text);
+              transition: transform 180ms, background 220ms, border-color 220ms;
+            }
+            .btn-ghost:hover {
+              background: rgba(255,255,255,0.06);
+              border-color: rgba(255,138,61,0.25);
+            }
+            .btn-ghost:active { transform: scale(0.97); }
+
+            /* Pulsing border for hero quest card */
+            .hero-quest-border::before {
+              content: '';
+              position: absolute;
+              inset: -1px;
+              border-radius: 24px;
+              padding: 1px;
+              background: linear-gradient(135deg, rgba(255,107,44,0.6), rgba(255,184,0,0.4), rgba(129,140,248,0.3), rgba(255,107,44,0.6));
+              -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              -webkit-mask-composite: xor;
+                      mask-composite: exclude;
+              animation: borderPulse 4.5s ease-in-out infinite;
+              pointer-events: none;
+            }
+
+            /* Top rule highlight on cards */
+            .top-rule::after {
+              content: '';
+              position: absolute; left: 18px; right: 18px; top: 0;
+              height: 1px;
+              background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+              pointer-events: none;
+            }
+
+            /* Animation utility classes */
+            .animate-fade-up { animation: fadeUp 0.7s cubic-bezier(.2,.8,.2,1) both; }
+            .animate-fade-in { animation: fadeIn 0.5s ease both; }
+            .animate-num-pulse { animation: numPulse 0.9s cubic-bezier(.2,.8,.2,1); }
+            .animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
+            .animate-orb-1 { animation: orbFloat 14s ease-in-out infinite; }
+            .animate-orb-2 { animation: orbFloat2 18s ease-in-out infinite; }
+            .animate-mesh-1 { animation: meshDrift 22s ease-in-out infinite; }
+            .animate-mesh-2 { animation: meshDrift2 28s ease-in-out infinite; }
+            .animate-slide-off { animation: slideOff 0.55s cubic-bezier(.55,.05,.65,.05) forwards; }
+            .animate-slide-in { animation: slideIn 0.7s cubic-bezier(.2,.8,.2,1) forwards; }
+            .animate-node-ripple { animation: nodeRipple 1.8s ease-out infinite; }
+
+            /* Gold sweep overlay for completion */
+            .gold-sweep {
+              position: absolute; inset: 0; overflow: hidden; border-radius: 24px; pointer-events: none;
+            }
+            .gold-sweep::before {
+              content: '';
+              position: absolute; top: 0; bottom: 0; width: 60%; left: 0;
+              background: linear-gradient(90deg, transparent, rgba(255,184,0,0.55), rgba(255,107,44,0.55), transparent);
+              animation: goldSweep 0.85s cubic-bezier(.2,.8,.2,1) forwards;
+            }
+
+            /* Focus ring */
+            .focus-ring:focus-visible {
+              outline: none;
+              box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255,138,61,0.55);
+            }
+
+            /* Textarea / input minimal */
+            .input-minimal {
+              background: transparent;
+              color: var(--text);
+              caret-color: var(--primary-from);
+            }
+            .input-minimal::placeholder { color: var(--text-subtle); }
+
+            /* Connector line in skill tree */
+            .connector {
+              background: linear-gradient(180deg, rgba(255,138,61,0.35), rgba(255,255,255,0.04));
+            }
+            .connector-dim {
+              background: rgba(255,255,255,0.06);
+            }
+
+            /* Hide focus outline on mouse, keep for keyboard */
+            button:focus { outline: none; }
+          `}</style>
+        );
+
+        /* ── Ambient background: mesh gradient + noise + drifting orbs ──────────────── */
+        const AmbientBackground = () => (
+          <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+            {/* Base */}
+            <div className="absolute inset-0" style={{ background: "var(--bg)" }} />
+
+            {/* Mesh layer 1 — warm amber from upper-center */}
+            <div
+              className="absolute inset-0 animate-mesh-1"
+              style={{
+                background:
+                  "radial-gradient(ellipse 70% 55% at 50% 12%, rgba(255,138,61,0.18) 0%, rgba(255,138,61,0.08) 28%, transparent 60%)",
+              }}
+            />
+            {/* Mesh layer 2 — gold, mid-right */}
+            <div
+              className="absolute inset-0 animate-mesh-2"
+              style={{
+                background:
+                  "radial-gradient(ellipse 50% 50% at 78% 30%, rgba(255,184,0,0.10) 0%, transparent 55%)",
+              }}
+            />
+            {/* Mesh layer 3 — deep navy corners */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(ellipse 80% 60% at 10% 95%, rgba(10,10,26,0.6) 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 95% 100%, rgba(20,15,40,0.5) 0%, transparent 60%)",
+              }}
+            />
+            {/* Indigo accent glow */}
+            <div
+              className="absolute inset-0 animate-mesh-2"
+              style={{
+                background:
+                  "radial-gradient(ellipse 40% 40% at 15% 75%, rgba(129,140,248,0.07) 0%, transparent 60%)",
+              }}
+            />
+
+            {/* Floating orbs */}
+            <div
+              className="absolute animate-orb-1"
+              style={{
+                width: 520,
+                height: 520,
+                top: "10%",
+                left: "-8%",
+                background:
+                  "radial-gradient(circle, rgba(255,107,44,0.10) 0%, transparent 65%)",
+                filter: "blur(40px)",
+              }}
+            />
+            <div
+              className="absolute animate-orb-2"
+              style={{
+                width: 420,
+                height: 420,
+                bottom: "5%",
+                right: "-6%",
+                background:
+                  "radial-gradient(circle, rgba(255,184,0,0.08) 0%, transparent 65%)",
+                filter: "blur(40px)",
+              }}
+            />
+
+            {/* Noise / film grain — inline SVG */}
+            <svg
+              className="absolute inset-0 w-full h-full"
+              style={{ opacity: 0.025, mixBlendMode: "overlay" }}
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <filter id="grainFilter">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+                <feColorMatrix type="saturate" values="0" />
+              </filter>
+              <rect width="100%" height="100%" filter="url(#grainFilter)" />
+            </svg>
+
+            {/* Vignette */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%)",
+              }}
+            />
+          </div>
+        );
+
+        /* ── Tiny visual helpers ────────────────────────────────────────────────────── */
+        const GradientIcon = ({ Icon, size = 18 }) => (
+          <span
+            className="inline-flex items-center justify-center rounded-xl"
+            style={{
+              width: size + 18,
+              height: size + 18,
+              background: "linear-gradient(135deg, rgba(255,107,44,0.18), rgba(255,184,0,0.10))",
+              border: "1px solid rgba(255,138,61,0.20)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px -8px rgba(255,107,44,0.4)",
+            }}
+          >
+            <Icon size={size} style={{ color: "#FFC169" }} strokeWidth={2.2} />
+          </span>
+        );
+
+        const PrimaryButton = ({ children, onClick, large = false, className = "", glow = false, type = "button" }) => (
+          <button
+            type={type}
+            onClick={onClick}
+            className={`btn-primary focus-ring rounded-full inline-flex items-center justify-center gap-2 ${large ? "px-7 py-4 text-base" : "px-5 py-3 text-sm"} ${glow ? "animate-glow-pulse" : ""} ${className}`}
+          >
+            {children}
+          </button>
+        );
+
+        const GhostButton = ({ children, onClick, className = "" }) => (
+          <button
+            onClick={onClick}
+            className={`btn-ghost focus-ring rounded-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm ${className}`}
+          >
+            {children}
+          </button>
+        );
+
+        /* ── Animated number count-up ───────────────────────────────────────────────── */
+        const useCountUp = (target, duration = 900) => {
+          const [val, setVal] = useState(target);
+          const fromRef = useRef(target);
+          const rafRef = useRef();
+          useEffect(() => {
+            const from = fromRef.current;
+            if (from === target) return;
+            const start = performance.now();
+            const tick = (now) => {
+              const t = Math.min(1, (now - start) / duration);
+              // easeOutCubic
+              const e = 1 - Math.pow(1 - t, 3);
+              setVal(Math.round(from + (target - from) * e));
+              if (t < 1) rafRef.current = requestAnimationFrame(tick);
+              else fromRef.current = target;
+            };
+            rafRef.current = requestAnimationFrame(tick);
+            return () => cancelAnimationFrame(rafRef.current);
+          }, [target, duration]);
+          return val;
+        };
+
+        /* ── Confetti — pure-canvas warm-gradient particle burst ────────────────────── */
+        const Confetti = ({ trigger }) => {
+          const canvasRef = useRef(null);
+          useEffect(() => {
+            if (!trigger) return;
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            const dpr = window.devicePixelRatio || 1;
+            const resize = () => {
+              canvas.width = canvas.offsetWidth * dpr;
+              canvas.height = canvas.offsetHeight * dpr;
+            };
+            resize();
+            window.addEventListener("resize", resize);
+
+            const W = () => canvas.width;
+            const H = () => canvas.height;
+            const cx = W() / 2;
+            const cy = H() * 0.42;
+
+            const colors = ["#FF6B2C", "#FF8A3D", "#FFB800", "#FFD166", "#FFF1B8"];
+            const particles = [];
+            const count = 140;
+            for (let i = 0; i < count; i++) {
+              const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+              const speed = 4 + Math.random() * 9;
+              particles.push({
+                x: cx,
+                y: cy,
+                vx: Math.cos(angle) * speed * dpr,
+                vy: Math.sin(angle) * speed * dpr - 4 * dpr,
+                size: (3 + Math.random() * 5) * dpr,
+                rot: Math.random() * Math.PI,
+                vr: (Math.random() - 0.5) * 0.3,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                life: 1,
+                shape: Math.random() > 0.5 ? "rect" : "circ",
+              });
+            }
+
+            let raf;
+            const gravity = 0.18 * dpr;
+            const drag = 0.992;
+            const draw = () => {
+              ctx.clearRect(0, 0, W(), H());
+              let alive = 0;
+              for (const p of particles) {
+                if (p.life <= 0) continue;
+                alive++;
+                p.vy += gravity;
+                p.vx *= drag;
+                p.vy *= drag;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rot += p.vr;
+                p.life -= 0.012;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                if (p.shape === "rect") {
+                  ctx.fillRect(-p.size, -p.size * 0.4, p.size * 2, p.size * 0.8);
+                } else {
+                  ctx.beginPath();
+                  ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+                ctx.restore();
+              }
+              if (alive > 0) raf = requestAnimationFrame(draw);
+            };
+            raf = requestAnimationFrame(draw);
+            return () => {
+              cancelAnimationFrame(raf);
+              window.removeEventListener("resize", resize);
+              ctx.clearRect(0, 0, W(), H());
+            };
+          }, [trigger]);
+
+          return (
+            <canvas
+              ref={canvasRef}
+              className="fixed inset-0 pointer-events-none z-50"
+              style={{ width: "100vw", height: "100vh" }}
+            />
+          );
+        };
+
+        /* ── Mock data ──────────────────────────────────────────────────────────────── */
+        const MOCK_ROADMAP = [
+          { week: 1, title: "Set the foundation", task: "Install your dev stack and ship a 'hello world' to GitHub", xp: 80, status: "done" },
+          { week: 2, title: "Your first real project", task: "Build a personal landing page with your top 3 projects", xp: 150, status: "current" },
+          { week: 3, title: "Version control fluency", task: "Learn branching, PRs, and contribute to one OSS issue", xp: 180, status: "future" },
+          { week: 4, title: "Frontend foundations", task: "Build a responsive React component library", xp: 200, status: "future" },
+          { week: 5, title: "API thinking", task: "Wire your project to a public API and ship it", xp: 220, status: "future" },
+          { week: 6, title: "Database basics", task: "Persist user data with Postgres + a simple CRUD app", xp: 240, status: "future" },
+          { week: 7, title: "Auth & deployment", task: "Add Google login and deploy to Vercel", xp: 260, status: "future" },
+          { week: 8, title: "Build in public", task: "Post a build log and ship a tiny tool publicly", xp: 280, status: "future" },
+          { week: 9, title: "Internship outreach", task: "Send 10 tailored cold emails to startups", xp: 300, status: "future" },
+          { week: 10, title: "Interview reps", task: "Complete 5 mock technical interviews", xp: 320, status: "future" },
+          { week: 11, title: "Polish your story", task: "Refine resume + portfolio with your top 5 wins", xp: 340, status: "future" },
+          { week: 12, title: "Convert", task: "Apply to 8 college programs and 6 internships", xp: 400, status: "future" },
+        ];
+
+        const MOCK_RECENT_WINS = [
+          { title: "Shipped your first PR to GitHub", xp: 50, when: "yesterday" },
+          { title: "Set up your dev stack end-to-end", xp: 30, when: "2 days ago" },
+          { title: "Wrote your first README", xp: 20, when: "3 days ago" },
+        ];
+
+        const EXAMPLE_GOALS = [
+          "Get into Cornell Tech",
+          "Land a startup internship",
+          "Become a self-taught designer",
+        ];
+
+        /* ── Landing page ───────────────────────────────────────────────────────────── */
+        const Navbar = ({ onCta, scrolled }) => (
+          <nav
+            className="fixed top-0 left-0 right-0 z-40 transition-all duration-300"
+            style={{
+              backdropFilter: scrolled ? "blur(20px)" : "blur(8px)",
+              background: scrolled ? "rgba(8,8,12,0.65)" : "rgba(8,8,12,0.25)",
+              borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+            }}
+          >
+            <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{
+                    background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                    boxShadow: "0 6px 18px -6px rgba(255,107,44,0.6)",
+                  }}
+                >
+                  <Hammer size={16} style={{ color: "#1a0c00" }} strokeWidth={2.5} />
+                </div>
+                <span className="font-display font-semibold text-lg tracking-tight">Forge</span>
+              </div>
+              <div className="hidden md:flex items-center gap-8 text-sm" style={{ color: "var(--text-muted)" }}>
+                <a className="hover:text-white transition-colors" href="#features">Features</a>
+                <a className="hover:text-white transition-colors" href="#how">How it works</a>
+                <a className="hover:text-white transition-colors" href="#pricing">Students</a>
+              </div>
+              <PrimaryButton onClick={onCta}>
+                Start your forge <ArrowRight size={15} strokeWidth={2.5} />
+              </PrimaryButton>
+            </div>
+          </nav>
+        );
+
+        const HeroHeadline = () => {
+          const words = "Build the future ITHS prepared you for.".split(" ");
+          return (
+            <h1
+              className="font-display font-semibold word-stagger"
+              style={{
+                fontSize: "clamp(44px, 8vw, 104px)",
+                lineHeight: 0.98,
+                letterSpacing: "-0.045em",
+              }}
+            >
+              {words.map((w, i) => {
+                // Highlight 'colleges want to meet.' in gradient
+                const highlight = i >= 4;
+                return (
+                  <span
+                    key={i}
+                    className={highlight ? "grad-text" : ""}
+                    style={{
+                      animationDelay: `${0.08 * i + 0.2}s`,
+                      marginRight: 14,
+                    }}
+                  >
+                    {w}
+                  </span>
+                );
+              })}
+            </h1>
+          );
+        };
+
+        const FeatureCard = ({ Icon, title, body, delay, accent }) => (
+          <div
+            className="glass glass-hover relative rounded-2xl p-7 top-rule"
+            style={{ animation: `fadeUp 0.8s cubic-bezier(.2,.8,.2,1) ${delay}s both` }}
+          >
+            <div className="mb-5">
+              <span
+                className="inline-flex items-center justify-center w-11 h-11 rounded-xl"
+                style={{
+                  background: accent,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 22px -8px rgba(255,107,44,0.35)",
+                }}
+              >
+                <Icon size={20} style={{ color: "#1a0c00" }} strokeWidth={2.4} />
+              </span>
+            </div>
+            <h3 className="font-display text-xl font-semibold mb-2 tracking-tight">{title}</h3>
+            <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {body}
+            </p>
+          </div>
+        );
+
+        const Landing = ({ onStart }) => {
+          const [scrolled, setScrolled] = useState(false);
+          const heroRef = useRef(null);
+          const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+          useEffect(() => {
+            const onScroll = () => setScrolled(window.scrollY > 24);
+            window.addEventListener("scroll", onScroll);
+            return () => window.removeEventListener("scroll", onScroll);
+          }, []);
+
+          const onMouseMove = (e) => {
+            const r = heroRef.current?.getBoundingClientRect();
+            if (!r) return;
+            const x = ((e.clientX - r.left) / r.width - 0.5) * 4;
+            const y = ((e.clientY - r.top) / r.height - 0.5) * 4;
+            setTilt({ x, y });
+          };
+
+          return (
+            <div className="min-h-screen">
+              <Navbar onCta={onStart} scrolled={scrolled} />
+
+              {/* Hero */}
+              <section
+                ref={heroRef}
+                onMouseMove={onMouseMove}
+                className="relative pt-40 pb-24 px-6"
+              >
+                <div className="max-w-6xl mx-auto text-center">
+                  {/* Eyebrow */}
+                  <div
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 animate-fade-in"
+                    style={{
+                      background: "rgba(255,138,61,0.06)",
+                      border: "1px solid rgba(255,138,61,0.18)",
+                      animationDelay: "0.05s",
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary-mid)", boxShadow: "0 0 12px rgba(255,138,61,0.8)" }} />
+                    <span className="text-xs font-medium tracking-wide" style={{ color: "#FFC169" }}>
+                      Built for ITHS students · Long Island City, NY
+                    </span>
+                  </div>
+
+                  <HeroHeadline />
+
+                  <p
+                    className="mt-8 max-w-2xl mx-auto text-lg animate-fade-up"
+                    style={{ color: "var(--text-muted)", animationDelay: "0.9s", animationFillMode: "both" }}
+                  >
+                    Forge turns your goal into a 90-day system. AI-powered roadmaps, a portfolio that
+                    writes itself, and the discipline of a streak. Built by ITHS students, for ITHS students.
+                  </p>
+
+                  <div
+                    className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-up"
+                    style={{ animationDelay: "1.05s", animationFillMode: "both" }}
+                  >
+                    <div
+                      style={{
+                        transform: `translate3d(${tilt.x}px, ${tilt.y}px, 0)`,
+                        transition: "transform 250ms cubic-bezier(.2,.8,.2,1)",
+                      }}
+                    >
+                      <PrimaryButton large glow onClick={onStart}>
+                        Start your forge <ArrowRight size={17} strokeWidth={2.5} />
+                      </PrimaryButton>
+                    </div>
+                  </div>
+
+                  <p
+                    className="mt-6 text-xs animate-fade-in"
+                    style={{ color: "var(--text-subtle)", animationDelay: "1.3s", animationFillMode: "both" }}
+                  >
+                    Free for ITHS students · No credit card · 90 days, one goal
+                  </p>
+                </div>
+
+                {/* Soft halo */}
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 -z-10 pointer-events-none"
+                  style={{
+                    top: "30%",
+                    width: 700,
+                    height: 700,
+                    background: "radial-gradient(circle, rgba(255,107,44,0.18) 0%, transparent 60%)",
+                    filter: "blur(20px)",
+                  }}
+                />
+              </section>
+
+              {/* Features */}
+              <section id="features" className="px-6 pb-32">
+                <div className="max-w-6xl mx-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <FeatureCard
+                      Icon={Compass}
+                      title="Your roadmap, in 30 seconds"
+                      body="Tell Forge your goal. Get a 12-week plan with weekly quests calibrated to where you are right now."
+                      delay={1.2}
+                      accent="linear-gradient(135deg, #FF6B2C, #FFB800)"
+                    />
+                    <FeatureCard
+                      Icon={Sparkles}
+                      title="Portfolio that writes itself"
+                      body="Paste a GitHub URL. Forge turns your README into a sharp, recruiter-ready bullet you can drop into your resume."
+                      delay={1.32}
+                      accent="linear-gradient(135deg, #FFB800, #FF8A3D)"
+                    />
+                    <FeatureCard
+                      Icon={Flame}
+                      title="A streak that means something"
+                      body="Show up daily. Watch your XP, level, and skill tree compound. Real progress, not vanity metrics."
+                      delay={1.44}
+                      accent="linear-gradient(135deg, #FF8A3D, #FFC169)"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* How It Works */}
+              <section id="how" className="px-6 pb-32">
+                <div className="max-w-6xl mx-auto">
+                  <div className="text-center mb-16">
+                    <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>How it works</span>
+                    <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
+                      From <span className="grad-text">lost</span> to <span className="grad-text">launched</span> in 90 days
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {[
+                      { num: '01', title: 'Set your goal', desc: 'Tell Forge what you want — Cornell CS, a startup internship, or your first freelance gig. Be specific.', icon: Target },
+                      { num: '02', title: 'AI forges your roadmap', desc: 'Our AI analyzes your goal and generates a personalized 12-week plan with weekly quests calibrated to your level.', icon: Sparkles },
+                      { num: '03', title: 'Ship, earn, level up', desc: 'Complete quests to earn XP, maintain your streak, build your portfolio, and watch your skill tree grow.', icon: Rocket },
+                    ].map((step, i) => (
+                      <div key={step.num} className="relative glass glass-hover top-rule rounded-2xl p-8 text-center" style={{ animation: `fadeUp 0.7s cubic-bezier(.2,.8,.2,1) ${0.1 * i + 0.1}s both` }}>
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', border: '1px solid rgba(255,138,61,0.25)' }}>
+                          <step.icon size={28} style={{ color: '#FFC169' }} strokeWidth={1.8} />
+                        </div>
+                        <div className="text-xs font-semibold tracking-widest mb-3 grad-text" style={{ letterSpacing: '0.2em' }}>{step.num}</div>
+                        <h3 className="font-display text-xl font-semibold tracking-tight mb-3">{step.title}</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>{step.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              {/* Stats Banner */}
+              <section className="px-6 pb-32">
+                <div className="max-w-6xl mx-auto glass top-rule rounded-3xl p-10">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                    {[
+                      { value: String(Object.keys(JSON.parse(localStorage.getItem('forge_users') || '{}')).length + 60) + '+', label: 'ITHS Students' },
+                      { value: '12', label: 'Week Roadmaps' },
+                      { value: 'AI', label: 'Powered Mentoring' },
+                      { value: '∞', label: 'Career Paths' },
+                    ].map((s, i) => (
+                      <div key={s.label} style={{ animation: `fadeUp 0.6s cubic-bezier(.2,.8,.2,1) ${0.1 * i}s both` }}>
+                        <div className="font-display font-semibold grad-text" style={{ fontSize: 'clamp(36px, 5vw, 56px)', lineHeight: 1, letterSpacing: '-0.04em' }}>{s.value}</div>
+                        <div className="text-xs uppercase tracking-widest mt-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              {/* Students Wall — dynamic */}
+              <section className="px-6 pb-32">
+                <div className="max-w-6xl mx-auto">
+                  <div className="text-center mb-14">
+                    <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>Our community</span>
+                    <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }}>
+                      ITHS students forging their futures
+                    </h2>
+                  </div>
+                  {(() => {
+                    const seedStudents = [
+                      { name: 'Alex M.', goal: 'Land a software engineering internship', joined: '2 weeks ago' },
+                      { name: 'Priya S.', goal: 'Get into NYU Tandon CS program', joined: '10 days ago' },
+                      { name: 'Marcus T.', goal: 'Become a full-stack developer', joined: '1 week ago' },
+                    ];
+                    const realUsers = Object.values(JSON.parse(localStorage.getItem('forge_users') || '{}'));
+                    const realData = JSON.parse(localStorage.getItem('forge_data') || '{}');
+                    const liveStudents = realUsers.map(u => ({
+                      name: u.name,
+                      goal: realData[u.email]?.goal || 'Setting their goal...',
+                      joined: 'Just joined',
+                      isLive: true,
+                    }));
+                    const allStudents = [...liveStudents, ...seedStudents];
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                          {allStudents.map((s, i) => (
+                            <div key={s.name + i} className="glass glass-hover top-rule rounded-2xl p-5 text-center" style={{ animation: `fadeUp 0.5s cubic-bezier(.2,.8,.2,1) ${0.04 * i + 0.05}s both` }}>
+                              <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center text-sm font-semibold mb-3" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.25), rgba(255,184,0,0.15))', border: s.isLive ? '2px solid rgba(52,211,153,0.6)' : '1px solid rgba(255,138,61,0.3)', color: '#FFC169' }}>
+                                {s.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </div>
+                              <div className="text-sm font-medium truncate">{s.name}</div>
+                              <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>{s.goal}</div>
+                              <div className="text-[10px] mt-2 flex items-center justify-center gap-1" style={{ color: 'var(--text-subtle)' }}>
+                                {s.isLive && <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#34D399', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />}
+                                {s.joined}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="text-center mt-6">
+                          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                            <span className="font-semibold grad-text">{allStudents.length}</span> students forging their futures at ITHS
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </section>
+
+              {/* CTA Section */}
+              <section className="px-6 pb-32">
+                <div className="max-w-4xl mx-auto text-center">
+                  <h2 className="font-display font-semibold tracking-tight mb-4" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
+                    Ready to <span className="grad-text-shimmer">forge your future</span>?
+                  </h2>
+                  <p className="text-lg mb-8 max-w-xl mx-auto" style={{ color: 'var(--text-muted)' }}>
+                    Join your ITHS classmates. Set one goal. Let AI build your roadmap. Start shipping.
+                  </p>
+                  <PrimaryButton large glow onClick={onStart}>
+                    Start your forge <ArrowRight size={17} strokeWidth={2.5} />
+                  </PrimaryButton>
+                </div>
+              </section>
+
+              {/* Footer */}
+              <div
+                className="mx-auto max-w-7xl px-6 py-10 text-xs flex items-center justify-between"
+                style={{ color: "var(--text-subtle)", borderTop: "1px solid var(--border)" }}
+              >
+                <span>Forge · Built for ITHS by ITHS students</span>
+                <span>Make ITHS Better Hackathon 2026</span>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Onboarding ─────────────────────────────────────────────────────────────── */
+        const Onboarding = ({ onSubmit }) => {
+          const [goal, setGoal] = useState("");
+          const taRef = useRef(null);
+
+          useEffect(() => {
+            taRef.current?.focus();
+          }, []);
+
+          const submit = () => {
+            if (!goal.trim()) return;
+            onSubmit(goal.trim());
+          };
+
+          return (
+            <div className="min-h-screen flex items-center justify-center px-6 py-20">
+              <div className="w-full max-w-2xl animate-fade-up">
+                <div className="text-center mb-10">
+                  <div className="inline-flex mb-5">
+                    <GradientIcon Icon={Target} size={20} />
+                  </div>
+                  <h1
+                    className="font-display font-semibold tracking-tight mb-3"
+                    style={{ fontSize: "clamp(32px, 4.5vw, 48px)", lineHeight: 1.05 }}
+                  >
+                    What are you forging?
+                  </h1>
+                  <p style={{ color: "var(--text-muted)" }} className="text-base max-w-md mx-auto">
+                    One goal. Be specific. Forge will turn it into a 90-day system.
+                  </p>
+                </div>
+
+                <div className="glass top-rule rounded-3xl p-6 md:p-8 relative">
+                  <textarea
+                    ref={taRef}
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+                    }}
+                    placeholder="e.g. Get into Cornell Tech with a strong CS portfolio by next fall"
+                    className="input-minimal w-full resize-none text-lg leading-relaxed focus:outline-none"
+                    style={{ minHeight: 110, fontFamily: "inherit" }}
+                    rows={3}
+                  />
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+                      ⌘ + Enter to submit
+                    </span>
+                    <PrimaryButton onClick={submit}>
+                      Forge my roadmap <ArrowRight size={15} strokeWidth={2.5} />
+                    </PrimaryButton>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-subtle)", letterSpacing: "0.18em" }}>
+                    Or start from
+                  </p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {EXAMPLE_GOALS.map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGoal(g)}
+                        className="chip rounded-full px-4 py-2 text-sm focus-ring"
+                        style={{
+                          background: "rgba(255,255,255,0.02)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Forging loader ─────────────────────────────────────────────────────────── */
+        const ForgingLoader = ({ goal, onDone }) => {
+          const phases = [
+            "Analyzing your goal",
+            "Mapping skills you'll need",
+            "Calibrating to week 1",
+            "Forging your 12-week plan",
+          ];
+          const [phase, setPhase] = useState(0);
+
+          useEffect(() => {
+            let cancelled = false;
+            const run = async () => {
+              setTimeout(() => !cancelled && setPhase(1), 700);
+              setTimeout(() => !cancelled && setPhase(2), 1500);
+              setTimeout(() => !cancelled && setPhase(3), 2300);
+              const roadmap = await generateRoadmap(goal);
+              const formatted = roadmap.map((w, i) => ({
+                ...w,
+                week: w.week || i + 1,
+                status: i === 0 ? 'current' : 'future',
+              }));
+              setTimeout(() => { if (!cancelled) onDone(formatted); }, 3300);
+            };
+            run();
+            return () => { cancelled = true; };
+          }, [goal]);
+
+          return (
+            <div className="min-h-screen flex items-center justify-center px-6">
+              <div className="text-center max-w-xl">
+                {/* Pulsing forge icon */}
+                <div className="relative inline-flex items-center justify-center mb-10">
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: "radial-gradient(circle, rgba(255,107,44,0.5) 0%, transparent 65%)",
+                      filter: "blur(20px)",
+                      animation: "glowPulse 2s ease-in-out infinite",
+                    }}
+                  />
+                  <div
+                    className="relative w-20 h-20 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), 0 18px 50px -10px rgba(255,107,44,0.6)",
+                    }}
+                  >
+                    <Hammer size={36} style={{ color: "#1a0c00" }} strokeWidth={2.4} />
+                  </div>
+                </div>
+
+                <h2
+                  className="font-display font-semibold tracking-tight mb-3"
+                  style={{ fontSize: "clamp(28px, 4vw, 40px)" }}
+                >
+                  <span className="grad-text-shimmer">Forging your roadmap…</span>
+                </h2>
+                <p style={{ color: "var(--text-muted)" }} className="text-base mb-10 italic">
+                  "{goal}"
+                </p>
+
+                <div className="space-y-2.5 max-w-sm mx-auto">
+                  {phases.map((p, i) => (
+                    <div
+                      key={p}
+                      className="flex items-center gap-3 text-sm transition-all duration-500"
+                      style={{ opacity: i <= phase ? 1 : 0.3 }}
+                    >
+                      <span className="flex items-center justify-center w-5 h-5">
+                        {i < phase ? (
+                          <Check size={14} style={{ color: "#FFC169" }} strokeWidth={3} />
+                        ) : i === phase ? (
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              background: "var(--primary-mid)",
+                              boxShadow: "0 0 10px rgba(255,138,61,0.8)",
+                              animation: "glowPulse 1.5s ease-in-out infinite",
+                            }}
+                          />
+                        ) : (
+                          <CircleDot size={12} style={{ color: "var(--text-subtle)" }} />
+                        )}
+                      </span>
+                      <span style={{ color: i <= phase ? "var(--text)" : "var(--text-subtle)" }}>{p}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Dashboard top bar ──────────────────────────────────────────────────────── */
+        const TopBar = ({ xp, level, streak, onNav, onProfile, user, signOut }) => {
+          const [open, setOpen] = useState(false);
+          const xpDisplay = useCountUp(xp);
+          const levelDisplay = useCountUp(level);
+          const streakDisplay = useCountUp(streak);
+
+          return (
+            <div
+              className="sticky top-0 z-30"
+              style={{
+                backdropFilter: "blur(20px)",
+                background: "rgba(8,8,12,0.7)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
+                {/* Logo */}
+                <button onClick={() => onNav("landing")} className="flex items-center gap-2.5 focus-ring rounded-lg">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))" }}
+                  >
+                    <Hammer size={15} style={{ color: "#1a0c00" }} strokeWidth={2.6} />
+                  </div>
+                  <span className="font-display font-semibold tracking-tight">Forge</span>
+                </button>
+
+                {/* Routes */}
+                <div className="hidden md:flex items-center gap-1">
+                  {[
+                    { id: "dashboard", label: "Dashboard" },
+                    { id: "roadmap", label: "Roadmap" },
+                    { id: "portfolio", label: "Portfolio" },
+                    { id: "leaderboard", label: "Leaderboard" },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => onNav(r.id)}
+                      className="px-3.5 py-1.5 rounded-full text-sm transition-colors hover:text-white focus-ring"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Stats cluster + profile */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className="hidden sm:flex items-center gap-3 px-3.5 py-1.5 rounded-full text-sm tabular"
+                    style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
+                  >
+                    <span className="flex items-center gap-1.5" title="XP">
+                      <Zap size={13} style={{ color: "#FFC169" }} strokeWidth={2.4} />
+                      <span className="font-medium">{xpDisplay}</span>
+                      <span style={{ color: "var(--text-subtle)" }}>XP</span>
+                    </span>
+                    <span className="w-px h-3" style={{ background: "var(--border-strong)" }} />
+                    <span className="flex items-center gap-1.5" title="Streak">
+                      <Flame size={13} style={{ color: "#FF8A3D" }} strokeWidth={2.4} />
+                      <span className="font-medium">{streakDisplay}</span>
+                    </span>
+                    <span className="w-px h-3" style={{ background: "var(--border-strong)" }} />
+                    <span className="flex items-center gap-1.5" title="Level">
+                      <Trophy size={13} style={{ color: "#FFC169" }} strokeWidth={2.4} />
+                      <span style={{ color: "var(--text-subtle)" }}>Lv</span>
+                      <span className="font-medium">{levelDisplay}</span>
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      onClick={() => setOpen((v) => !v)}
+                      className="w-9 h-9 rounded-full focus-ring flex items-center justify-center font-medium text-sm"
+                      style={{
+                        background: "linear-gradient(135deg, #2a1a08, #1a1424)",
+                        border: "1px solid var(--border-strong)",
+                        color: "#FFC169",
+                      }}
+                    >
+                      {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : '??'}
+                    </button>
+                    {open && (
+                      <div
+                        className="absolute right-0 mt-2 w-56 rounded-xl glass top-rule overflow-hidden animate-fade-up"
+                        style={{ animationDuration: "0.25s" }}
+                      >
+                        <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                          <div className="text-sm font-medium">{user?.name || 'Student'}</div>
+                          <div className="text-xs" style={{ color: "var(--text-subtle)" }}>{user?.email || 'student@iths.edu'}</div>
+                        </div>
+                        <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5" onClick={() => { setOpen(false); onProfile(); }}>
+                          <User size={14} /> Profile
+                        </button>
+                        <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5">
+                          <Settings size={14} /> Settings
+                        </button>
+                        <button onClick={() => { setOpen(false); if (signOut) signOut(); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2.5" style={{ color: "var(--danger)" }}>
+                          <LogOut size={14} /> Sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Today's Quest hero card ───────────────────────────────────────────────── */
+        const TodaysQuest = ({ task, onComplete, sweep, exiting, entering }) => {
+          if (!task) {
+            return (
+              <div className="glass top-rule rounded-3xl p-10 flex flex-col items-center justify-center text-center min-h-[420px]">
+                <GradientIcon Icon={Trophy} size={22} />
+                <h3 className="font-display text-2xl font-semibold mt-5 mb-2 tracking-tight">12 weeks. Done.</h3>
+                <p className="max-w-sm" style={{ color: "var(--text-muted)" }}>
+                  You've completed every quest in your roadmap. Time to set a new goal — or apply.
+                </p>
+                <PrimaryButton onClick={() => {}} className="mt-6">
+                  Set a new goal <ArrowRight size={15} strokeWidth={2.5} />
+                </PrimaryButton>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              className={`relative glass hero-quest-border rounded-3xl p-7 md:p-10 overflow-hidden ${exiting ? "animate-slide-off" : ""} ${entering ? "animate-slide-in" : ""}`}
+            >
+              {sweep && <div className="gold-sweep" />}
+
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-[11px] font-semibold tracking-widest uppercase px-2.5 py-1 rounded-full"
+                    style={{
+                      background: "rgba(255,138,61,0.12)",
+                      border: "1px solid rgba(255,138,61,0.25)",
+                      color: "#FFC169",
+                      letterSpacing: "0.18em",
+                    }}
+                  >
+                    Today's Quest
+                  </span>
+                  <span className="text-xs flex items-center gap-1.5" style={{ color: "var(--text-subtle)" }}>
+                    <CircleDot size={10} /> Week {task.week} · {task.title}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row md:items-end gap-8">
+                <div className="flex-1">
+                  <h2
+                    className="font-display font-semibold tracking-tight mb-3"
+                    style={{ fontSize: "clamp(26px, 3.2vw, 38px)", lineHeight: 1.1 }}
+                  >
+                    {task.task}
+                  </h2>
+                  <div className="flex items-center gap-4 text-sm" style={{ color: "var(--text-muted)" }}>
+                    <span className="flex items-center gap-1.5">
+                      <Target size={13} /> ~ {Math.max(30, Math.min(120, task.xp))} min
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles size={13} /> {task.title || 'Quest'}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Rocket size={13} /> Week {task.week} of 12
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div
+                    className="font-display font-semibold tabular grad-text"
+                    style={{ fontSize: "clamp(48px, 6vw, 72px)", lineHeight: 1, letterSpacing: "-0.04em" }}
+                  >
+                    +{task.xp}
+                  </div>
+                  <div className="text-xs uppercase tracking-widest mt-1" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+                    XP
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <p className="text-sm max-w-md" style={{ color: "var(--text-muted)" }}>
+                  Don't perfect it. Ship it. You can always sharpen it next week.
+                </p>
+                <PrimaryButton large glow onClick={onComplete}>
+                  Complete quest <ArrowRight size={16} strokeWidth={2.5} />
+                </PrimaryButton>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Stats card ─────────────────────────────────────────────────────────────── */
+        const StatsCard = ({ xp, xpToNext, level, streak }) => {
+          const xpDisplay = useCountUp(xp);
+          const pct = Math.min(100, Math.round((xp / xpToNext) * 100));
+          return (
+            <div className="glass top-rule rounded-3xl p-7 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+                  Level
+                </span>
+                <Trophy size={15} style={{ color: "#FFC169" }} />
+              </div>
+              <div
+                className="font-display font-semibold tabular grad-text"
+                style={{ fontSize: "clamp(48px, 5.5vw, 72px)", lineHeight: 1, letterSpacing: "-0.04em" }}
+              >
+                {level}
+              </div>
+
+              <div className="mt-6">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-xs tabular" style={{ color: "var(--text-muted)" }}>
+                    <span className="text-white font-medium">{xpDisplay}</span> / {xpToNext} XP
+                  </span>
+                  <span className="text-xs tabular" style={{ color: "var(--text-subtle)" }}>{pct}%</span>
+                </div>
+                <div
+                  className="relative h-2 rounded-full overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)" }}
+                >
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{
+                      width: `${pct}%`,
+                      background: "linear-gradient(90deg, var(--primary-from), var(--primary-to))",
+                      boxShadow: "0 0 12px rgba(255,138,61,0.6), inset 0 1px 0 rgba(255,255,255,0.4)",
+                      transition: "width 800ms cubic-bezier(.2,.8,.2,1)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div
+                className="mt-auto pt-6 flex items-center justify-between"
+                style={{ borderTop: "1px solid var(--border)", marginTop: 24 }}
+              >
+                <div>
+                  <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--text-subtle)", letterSpacing: "0.18em" }}>
+                    Streak
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-display font-semibold tabular text-3xl">{streak}</span>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>days</span>
+                  </div>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{
+                    background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.3), rgba(255,107,44,0.05))",
+                    border: "1px solid rgba(255,138,61,0.25)",
+                  }}
+                >
+                  <Flame size={22} style={{ color: "#FF8A3D" }} strokeWidth={2.2} />
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Skill tree ─────────────────────────────────────────────────────────────── */
+        const SkillTree = ({ weeks, currentWeek }) => {
+          return (
+            <div className="glass top-rule rounded-3xl p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-display text-base font-semibold tracking-tight">Skill tree</h3>
+                <span className="text-xs" style={{ color: "var(--text-subtle)" }}>12 weeks</span>
+              </div>
+
+              <div
+                className="relative flex-1 overflow-y-auto pr-1"
+                style={{ maxHeight: 540 }}
+              >
+                <ul className="relative">
+                  {weeks.map((w, i) => {
+                    const isDone = w.status === "done";
+                    const isCurrent = w.status === "current" || (w.week === currentWeek && !isDone);
+                    const isFuture = !isDone && !isCurrent;
+                    const isLast = i === weeks.length - 1;
+                    return (
+                      <li key={w.week} className="relative flex gap-3 pb-4 last:pb-0">
+                        {/* Connector */}
+                        {!isLast && (
+                          <span
+                            className={`absolute left-[14px] top-8 bottom-0 w-px ${isDone ? "" : "connector-dim"}`}
+                            style={
+                              isDone
+                                ? { background: "linear-gradient(180deg, rgba(255,184,0,0.5), rgba(255,138,61,0.25))" }
+                                : undefined
+                            }
+                          />
+                        )}
+                        {/* Node */}
+                        <span
+                          className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold tabular shrink-0 ${
+                            isCurrent ? "animate-node-ripple" : ""
+                          }`}
+                          style={
+                            isDone
+                              ? {
+                                  background: "linear-gradient(135deg, rgba(255,184,0,0.3), rgba(255,107,44,0.2))",
+                                  border: "1px solid rgba(255,184,0,0.4)",
+                                  color: "#FFD166",
+                                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)",
+                                }
+                              : isCurrent
+                              ? {
+                                  background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                                  color: "#1a0c00",
+                                  boxShadow: "0 0 0 3px rgba(255,138,61,0.18), 0 8px 22px -6px rgba(255,107,44,0.6)",
+                                  transform: "scale(1.08)",
+                                }
+                              : {
+                                  background: "rgba(255,255,255,0.025)",
+                                  border: "1px solid var(--border)",
+                                  color: "var(--text-subtle)",
+                                }
+                          }
+                        >
+                          {isDone ? <Check size={13} strokeWidth={3} /> : w.week}
+                        </span>
+                        {/* Content */}
+                        <div className="min-w-0 flex-1 pt-0.5">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span
+                              className="text-[10px] uppercase tracking-widest"
+                              style={{
+                                color: isDone ? "#FFC169" : isCurrent ? "#FFC169" : "var(--text-subtle)",
+                                letterSpacing: "0.18em",
+                              }}
+                            >
+                              Week {w.week}
+                            </span>
+                            {isCurrent && (
+                              <span className="text-[10px] font-medium" style={{ color: "var(--primary-mid)" }}>
+                                · Now
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className={`text-[13px] leading-snug ${isFuture ? "" : "font-medium"}`}
+                            style={{ color: isFuture ? "var(--text-subtle)" : "var(--text)" }}
+                          >
+                            {w.title}
+                          </div>
+                        </div>
+                        {isFuture && <Lock size={11} style={{ color: "var(--text-subtle)" }} className="mt-1.5 shrink-0" />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Recent wins ────────────────────────────────────────────────────────────── */
+        const RecentWins = ({ wins }) => (
+          <div className="glass top-rule rounded-3xl p-6 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-base font-semibold tracking-tight">Recent wins</h3>
+              <span
+                className="text-xs px-2 py-0.5 rounded-full tabular"
+                style={{ background: "rgba(255,138,61,0.1)", color: "#FFC169" }}
+              >
+                +{wins.reduce((a, w) => a + w.xp, 0)} XP this week
+              </span>
+            </div>
+            <ul className="flex-1 flex flex-col gap-2.5">
+              {wins.map((w, i) => (
+                <li
+                  key={i}
+                  className="flex items-center gap-3 p-3 rounded-2xl transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.015)",
+                    border: "1px solid var(--border)",
+                    animation: `slideIn 0.55s cubic-bezier(.2,.8,.2,1) ${i * 0.08}s both`,
+                  }}
+                >
+                  <span
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(52,211,153,0.18), rgba(16,185,129,0.08))",
+                      border: "1px solid rgba(52,211,153,0.25)",
+                    }}
+                  >
+                    <Check size={15} style={{ color: "#34D399" }} strokeWidth={2.6} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{w.title}</div>
+                    <div className="text-xs" style={{ color: "var(--text-subtle)" }}>{w.when}</div>
+                  </div>
+                  <div className="text-sm font-semibold tabular" style={{ color: "#FFC169" }}>
+                    +{w.xp}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+
+        /* ── Dashboard ──────────────────────────────────────────────────────────────── */
+        const Dashboard = ({ state, dispatch, onNav, goal, user, signOut }) => {
+          const [exiting, setExiting] = useState(false);
+          const [entering, setEntering] = useState(false);
+          const [sweep, setSweep] = useState(false);
+          const [confetti, setConfetti] = useState(0);
+
+          const currentTask = useMemo(
+            () => state.roadmap.find((w) => w.status === "current"),
+            [state.roadmap]
+          );
+
+          const completeQuest = () => {
+            if (!currentTask) return;
+            setSweep(true);
+            setConfetti((n) => n + 1);
+            setTimeout(() => {
+              setExiting(true);
+            }, 450);
+            setTimeout(() => {
+              dispatch({ type: "complete", xp: currentTask.xp, week: currentTask.week });
+              setExiting(false);
+              setSweep(false);
+              setEntering(true);
+            }, 1000);
+            setTimeout(() => setEntering(false), 1700);
+          };
+
+          return (
+            <div>
+              <Confetti trigger={confetti} />
+              <TopBar
+                xp={state.xp}
+                level={state.level}
+                streak={state.streak}
+                onNav={onNav}
+                onProfile={() => {}}
+                user={user}
+                signOut={signOut}
+              />
+
+              <main className="max-w-7xl mx-auto px-6 py-8">
+                {/* Personalized Greeting */}
+                <div
+                  className="mb-8 animate-fade-up"
+                  style={{ animationDelay: "0.05s", animationFillMode: "both" }}
+                >
+                  <h1 className="font-display font-semibold tracking-tight" style={{ fontSize: "clamp(24px, 3vw, 34px)", lineHeight: 1.1 }}>
+                    Welcome back, <span className="grad-text">{user?.name?.split(' ')[0] || 'Builder'}</span>.
+                  </h1>
+                  {goal && (
+                    <div className="mt-3 inline-flex items-center gap-2.5 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,138,61,0.06)', border: '1px solid rgba(255,138,61,0.15)' }}>
+                      <Target size={14} style={{ color: '#FFC169' }} />
+                      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Your goal: </span>
+                      <span className="text-sm font-medium" style={{ color: '#FFC169' }}>{goal}</span>
+                    </div>
+                  )}
+                  <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
+                    You're on a {state.streak}-day streak. One quest today, and you keep it alive.
+                  </p>
+                </div>
+
+                {/* Bento grid: 12 cols × 3 rows */}
+                <div
+                  className="grid grid-cols-1 lg:grid-cols-12 gap-4"
+                  style={{ gridAutoRows: "minmax(0, auto)" }}
+                >
+                  {/* Hero quest — col-span-8, row-span-2 */}
+                  <div
+                    className="lg:col-span-8 lg:row-span-2"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.12s both" }}
+                  >
+                    <TodaysQuest
+                      task={currentTask}
+                      onComplete={completeQuest}
+                      sweep={sweep}
+                      exiting={exiting}
+                      entering={entering}
+                    />
+                  </div>
+
+                  {/* Stats — col-span-4 */}
+                  <div
+                    className="lg:col-span-4"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.20s both" }}
+                  >
+                    <StatsCard
+                      xp={state.xp}
+                      xpToNext={state.xpToNext}
+                      level={state.level}
+                      streak={state.streak}
+                    />
+                  </div>
+
+                  {/* Skill tree — col-span-4, row-span-2 */}
+                  <div
+                    className="lg:col-span-4 lg:row-span-2"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.28s both" }}
+                  >
+                    <SkillTree weeks={state.roadmap} currentWeek={state.currentWeek} />
+                  </div>
+
+                  {/* Recent wins — col-span-8 (under hero quest) */}
+                  <div
+                    className="lg:col-span-8"
+                    style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.36s both" }}
+                  >
+                    <RecentWins wins={state.wins} />
+                  </div>
+                </div>
+
+                {/* Quick links */}
+                <div
+                  className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4"
+                  style={{ animation: "fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.5s both" }}
+                >
+                  <button
+                    onClick={() => onNav("portfolio")}
+                    className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
+                  >
+                    <GradientIcon Icon={Github} size={20} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display text-base font-semibold tracking-tight">Portfolio generator</div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>Turn a GitHub repo into a bullet</div>
+                    </div>
+                    <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
+                  </button>
+                  <button
+                    onClick={() => onNav("roadmap")}
+                    className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
+                  >
+                    <GradientIcon Icon={Compass} size={20} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display text-base font-semibold tracking-tight">Full roadmap</div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>See all 12 weeks and what's coming</div>
+                    </div>
+                    <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
+                  </button>
+                  <button
+                    onClick={() => onNav("leaderboard")}
+                    className="glass glass-hover top-rule rounded-3xl p-6 text-left flex items-center gap-4 focus-ring"
+                  >
+                    <GradientIcon Icon={Trophy} size={20} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display text-base font-semibold tracking-tight">ITHS Leaderboard</div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)" }}>See who's forging the hardest</div>
+                    </div>
+                    <ChevronRight size={16} style={{ color: "var(--text-subtle)" }} />
+                  </button>
+                </div>
+              </main>
+            </div>
+          );
+        };
+
+        /* ── Portfolio generator ───────────────────────────────────────────────────── */
+        const Portfolio = ({ onNav, state }) => {
+          const [url, setUrl] = useState("");
+          const [loading, setLoading] = useState(false);
+          const [bullet, setBullet] = useState("");
+          const [copied, setCopied] = useState(false);
+
+          const generate = async () => {
+            if (!url.trim()) return;
+            setLoading(true);
+            setBullet("");
+            try {
+              const result = await generateBullet(url.trim());
+              setBullet(result);
+            } catch (e) {
+              setBullet('Unable to generate bullet. Please try again.');
+            }
+            setLoading(false);
+          };
+
+          const copy = () => {
+            navigator.clipboard?.writeText(bullet);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          };
+
+          return (
+            <div>
+              <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+              <main className="max-w-4xl mx-auto px-6 py-12">
+                <div className="mb-10 animate-fade-up">
+                  <div className="inline-flex mb-4">
+                    <GradientIcon Icon={Github} size={20} />
+                  </div>
+                  <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: "clamp(32px, 4vw, 44px)", lineHeight: 1.05 }}>
+                    Portfolio generator
+                  </h1>
+                  <p style={{ color: "var(--text-muted)" }} className="max-w-xl">
+                    Paste a GitHub repo URL. Forge reads your README and turns it into a sharp,
+                    recruiter-ready resume bullet.
+                  </p>
+                </div>
+
+                <div className="glass top-rule rounded-3xl p-6 md:p-7 animate-fade-up" style={{ animationDelay: "0.1s", animationFillMode: "both" }}>
+                  <label className="text-xs uppercase tracking-widest block mb-3" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+                    GitHub URL
+                  </label>
+                  <div
+                    className="flex flex-col sm:flex-row items-stretch gap-3 p-2 rounded-2xl"
+                    style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--border)" }}
+                  >
+                    <div className="flex items-center gap-3 flex-1 px-3">
+                      <Github size={16} style={{ color: "var(--text-subtle)" }} />
+                      <input
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && generate()}
+                        placeholder="https://github.com/yourname/your-project"
+                        className="input-minimal flex-1 py-3 text-base focus:outline-none"
+                      />
+                    </div>
+                    <PrimaryButton onClick={generate}>
+                      {loading ? "Generating…" : "Generate bullet"}
+                      {!loading && <ArrowRight size={15} strokeWidth={2.5} />}
+                    </PrimaryButton>
+                  </div>
+                </div>
+
+                {/* Result */}
+                <div className="mt-6">
+                  {loading && (
+                    <div className="glass top-rule rounded-3xl p-7 animate-fade-up">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Sparkles size={15} style={{ color: "#FFC169" }} />
+                        <span className="text-sm grad-text-shimmer font-medium">Reading your README…</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-3 rounded-full w-11/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+                        <div className="h-3 rounded-full w-10/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+                        <div className="h-3 rounded-full w-8/12" style={{ background: "rgba(255,255,255,0.04)" }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {bullet && !loading && (
+                    <div
+                      className="relative glass top-rule rounded-3xl p-7 animate-fade-up"
+                      style={{ animationDuration: "0.6s" }}
+                    >
+                      {/* Animated gradient border */}
+                      <div
+                        className="absolute inset-0 rounded-3xl pointer-events-none"
+                        style={{
+                          padding: 1,
+                          background: "linear-gradient(135deg, rgba(255,107,44,0.5), rgba(255,184,0,0.3), rgba(129,140,248,0.3))",
+                          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                          WebkitMaskComposite: "xor",
+                          maskComposite: "exclude",
+                        }}
+                      />
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={15} style={{ color: "#FFC169" }} />
+                          <span className="text-xs uppercase tracking-widest" style={{ color: "#FFC169", letterSpacing: "0.18em" }}>
+                            Resume bullet
+                          </span>
+                        </div>
+                        <button
+                          onClick={copy}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-ring transition-colors"
+                          style={{
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid var(--border)",
+                            color: copied ? "#34D399" : "var(--text-muted)",
+                          }}
+                        >
+                          {copied ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />}
+                          {copied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <p className="text-lg leading-relaxed" style={{ letterSpacing: "-0.01em" }}>
+                        {bullet}
+                      </p>
+                    </div>
+                  )}
+
+                  {!loading && !bullet && (
+                    <div className="mt-6 flex flex-col items-center text-center py-10">
+                      <div
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                        style={{
+                          background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.18), rgba(255,107,44,0.03))",
+                          border: "1px solid rgba(255,138,61,0.18)",
+                        }}
+                      >
+                        <Github size={26} style={{ color: "#FFC169" }} />
+                      </div>
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                        Paste a GitHub URL above to generate your first bullet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </main>
+            </div>
+          );
+        };
+
+        /* ── Roadmap full page ──────────────────────────────────────────────────────── */
+        const Roadmap = ({ onNav, state }) => (
+          <div>
+            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+            <main className="max-w-3xl mx-auto px-6 py-12">
+              <div className="mb-10 animate-fade-up">
+                <div className="inline-flex mb-4">
+                  <GradientIcon Icon={Compass} size={20} />
+                </div>
+                <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: "clamp(32px, 4vw, 44px)", lineHeight: 1.05 }}>
+                  Your 12-week roadmap
+                </h1>
+                <p style={{ color: "var(--text-muted)" }} className="max-w-xl">
+                  A system, not a wish-list. Stay on the current week — momentum compounds.
+                </p>
+              </div>
+
+              <ol className="relative space-y-3">
+                {state.roadmap.map((w, i) => {
+                  const isDone = w.status === "done";
+                  const isCurrent = w.status === "current";
+                  return (
+                    <li
+                      key={w.week}
+                      className="glass top-rule rounded-2xl p-5 flex items-start gap-5"
+                      style={{
+                        animation: `fadeUp 0.6s cubic-bezier(.2,.8,.2,1) ${i * 0.04 + 0.05}s both`,
+                        borderColor: isCurrent ? "rgba(255,138,61,0.28)" : "var(--border)",
+                      }}
+                    >
+                      <span
+                        className="shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center text-xs font-medium tabular"
+                        style={
+                          isDone
+                            ? {
+                                background: "linear-gradient(135deg, rgba(255,184,0,0.2), rgba(255,107,44,0.12))",
+                                border: "1px solid rgba(255,184,0,0.35)",
+                                color: "#FFD166",
+                              }
+                            : isCurrent
+                            ? {
+                                background: "linear-gradient(135deg, var(--primary-from), var(--primary-to))",
+                                color: "#1a0c00",
+                                boxShadow: "0 8px 22px -6px rgba(255,107,44,0.55)",
+                              }
+                            : {
+                                background: "rgba(255,255,255,0.025)",
+                                border: "1px solid var(--border)",
+                                color: "var(--text-subtle)",
+                              }
+                        }
+                      >
+                        <span style={{ fontSize: 9, letterSpacing: "0.14em", opacity: 0.8 }}>WK</span>
+                        <span className="font-display font-semibold text-base">{w.week}</span>
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-display text-lg font-semibold tracking-tight">{w.title}</h3>
+                          {isCurrent && (
+                            <span
+                              className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
+                              style={{
+                                background: "rgba(255,138,61,0.14)",
+                                color: "#FFC169",
+                                letterSpacing: "0.2em",
+                              }}
+                            >
+                              Now
+                            </span>
+                          )}
+                          {isDone && (
+                            <span
+                              className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
+                              style={{
+                                background: "rgba(52,211,153,0.12)",
+                                color: "#34D399",
+                                letterSpacing: "0.2em",
+                              }}
+                            >
+                              Done
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm" style={{ color: isDone || isCurrent ? "var(--text-muted)" : "var(--text-subtle)" }}>
+                          {w.task}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-base font-semibold tabular grad-text">+{w.xp}</div>
+                        <div className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-subtle)", letterSpacing: "0.2em" }}>
+                          XP
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </main>
+          </div>
+        );
+
+        /* ── Leaderboard ─────────────────────────────────────────────────────────── */
+        const MOCK_LEADERBOARD = [
+          { rank: 1, name: 'Sarah K.', xp: 2840, level: 8, streak: 45, goal: 'Cornell Tech CS' },
+          { rank: 2, name: 'David L.', xp: 2650, level: 7, streak: 38, goal: 'Google internship' },
+          { rank: 3, name: 'Maya R.', xp: 2420, level: 7, streak: 32, goal: 'NYU Tandon' },
+          { rank: 4, name: 'Brandon D.', xp: 2100, level: 6, streak: 28, goal: 'Startup founder' },
+          { rank: 5, name: 'James W.', xp: 1890, level: 5, streak: 22, goal: 'Cybersecurity career' },
+          { rank: 6, name: 'Aisha N.', xp: 1650, level: 5, streak: 19, goal: 'UI/UX at a startup' },
+          { rank: 7, name: 'Carlos M.', xp: 1440, level: 4, streak: 15, goal: 'Full-stack developer' },
+          { rank: 8, name: 'Emily T.', xp: 1200, level: 4, streak: 12, goal: 'Data science path' },
+          { rank: 9, name: 'Ryan P.', xp: 980, level: 3, streak: 9, goal: 'Game development' },
+          { rank: 10, name: 'Zoe H.', xp: 720, level: 3, streak: 7, goal: 'Stony Brook CS' },
+        ];
+
+        const Leaderboard = ({ onNav, state }) => (
+          <div>
+            <TopBar xp={state.xp} level={state.level} streak={state.streak} onNav={onNav} onProfile={() => {}} />
+            <main className="max-w-4xl mx-auto px-6 py-12">
+              <div className="mb-10 animate-fade-up">
+                <div className="inline-flex mb-4"><GradientIcon Icon={Trophy} size={20} /></div>
+                <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: 'clamp(32px, 4vw, 44px)', lineHeight: 1.05 }}>
+                  ITHS Leaderboard
+                </h1>
+                <p style={{ color: 'var(--text-muted)' }} className="max-w-xl">See who's forging the hardest. XP earned from completed quests this semester.</p>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-8" style={{ animation: 'fadeUp 0.7s cubic-bezier(.2,.8,.2,1) 0.1s both' }}>
+                {[MOCK_LEADERBOARD[1], MOCK_LEADERBOARD[0], MOCK_LEADERBOARD[2]].map((s, i) => {
+                  const isFirst = i === 1;
+                  const medals = ['\ud83e\udd48', '\ud83e\udd47', '\ud83e\udd49'];
+                  return (
+                    <div key={s.name} className={`glass top-rule rounded-2xl p-5 text-center ${isFirst ? '' : ''}`} style={{ transform: isFirst ? 'scale(1.05)' : '', zIndex: isFirst ? 1 : 0, border: isFirst ? '1px solid rgba(255,184,0,0.3)' : undefined }}>
+                      <div className="text-3xl mb-2">{medals[i]}</div>
+                      <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center text-lg font-semibold mb-3" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.25), rgba(255,184,0,0.15))', border: '1px solid rgba(255,138,61,0.3)', color: '#FFC169' }}>
+                        {s.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="font-display font-semibold text-sm">{s.name}</div>
+                      <div className="font-display font-semibold tabular grad-text text-2xl mt-1">{s.xp.toLocaleString()}</div>
+                      <div className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>XP</div>
+                      <div className="flex items-center justify-center gap-1.5 mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <Flame size={11} style={{ color: '#FF8A3D' }} /> {s.streak}d streak
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="space-y-2">
+                {MOCK_LEADERBOARD.map((s, i) => (
+                  <div key={s.name} className="glass top-rule rounded-2xl px-5 py-3.5 flex items-center gap-4" style={{ animation: `fadeUp 0.5s cubic-bezier(.2,.8,.2,1) ${i * 0.04 + 0.2}s both` }}>
+                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold tabular ${s.rank <= 3 ? 'grad-text' : ''}`} style={s.rank > 3 ? { color: 'var(--text-subtle)' } : { background: 'rgba(255,138,61,0.1)', border: '1px solid rgba(255,138,61,0.2)' }}>
+                      {s.rank}
+                    </span>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', color: '#FFC169' }}>
+                      {s.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{s.name}</div>
+                      <div className="text-xs" style={{ color: 'var(--text-subtle)' }}>{s.goal}</div>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm tabular">
+                      <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}><Flame size={12} style={{ color: '#FF8A3D' }} />{s.streak}</span>
+                      <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}><Trophy size={12} style={{ color: '#FFC169' }} />Lv{s.level}</span>
+                      <span className="font-semibold grad-text min-w-[60px] text-right">{s.xp.toLocaleString()} XP</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </main>
+          </div>
+        );
+
+        /* ── AI Chat Panel ──────────────────────────────────────────────────────── */
+        const ChatPanel = () => {
+          const [open, setOpen] = useState(false);
+          const [messages, setMessages] = useState([
+            { role: 'assistant', content: 'Hey! I\'m your Forge AI mentor, built for ITHS students. Ask me anything about tech careers, college prep, coding skills, or portfolio building.' }
+          ]);
+          const [input, setInput] = useState('');
+          const [loading, setLoading] = useState(false);
+          const endRef = useRef(null);
+          const inputRef = useRef(null);
+
+          useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+          useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+          const send = async () => {
+            if (!input.trim() || loading) return;
+            const msg = input.trim();
+            setInput('');
+            setMessages(prev => [...prev, { role: 'user', content: msg }]);
+            setLoading(true);
+            try {
+              const response = await chatWithMentor(msg, messages);
+              setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+            } catch (e) {
+              setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I had trouble processing that. Try again!' }]);
+            }
+            setLoading(false);
+          };
+
+          return (
+            <>
+              <button
+                onClick={() => setOpen(v => !v)}
+                className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center focus-ring"
+                style={{
+                  background: 'linear-gradient(135deg, var(--primary-from), var(--primary-to))',
+                  boxShadow: '0 8px 30px -6px rgba(255,107,44,0.6), inset 0 1px 0 rgba(255,255,255,0.4)',
+                  transition: 'transform 200ms',
+                  transform: open ? 'rotate(45deg) scale(0.9)' : 'scale(1)',
+                }}
+              >
+                {open
+                  ? <span style={{ color: '#1a0c00', fontSize: 24, fontWeight: 700 }}>+</span>
+                  : <Sparkles size={22} style={{ color: '#1a0c00' }} strokeWidth={2.4} />
+                }
+              </button>
+
+              {open && (
+                <div className="fixed bottom-24 right-6 z-50 w-[380px] max-h-[520px] glass rounded-2xl overflow-hidden flex flex-col animate-fade-up" style={{ animationDuration: '0.3s', border: '1px solid rgba(255,138,61,0.15)' }}>
+                  <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', border: '1px solid rgba(255,138,61,0.25)' }}>
+                      <Sparkles size={16} style={{ color: '#FFC169' }} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">Forge AI Mentor</div>
+                      <div className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--text-subtle)' }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#34D399', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+                        Online · ITHS Edition
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ maxHeight: 360 }}>
+                    {messages.map((m, i) => (
+                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className="rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed max-w-[85%]" style={m.role === 'user' ? { background: 'linear-gradient(135deg, var(--primary-from), var(--primary-to))', color: '#1a0c00' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                          {m.content}
+                        </div>
+                      </div>
+                    ))}
+                    {loading && (
+                      <div className="flex justify-start">
+                        <div className="rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}>
+                          <div className="flex gap-1.5">
+                            {[0, 1, 2].map(j => (
+                              <span key={j} className="w-2 h-2 rounded-full" style={{ background: 'var(--text-subtle)', animation: `fadeIn 0.6s ease ${j * 0.15}s infinite alternate` }} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={endRef} />
+                  </div>
+                  <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="flex gap-2">
+                      <input
+                        ref={inputRef}
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && send()}
+                        placeholder="Ask about careers, skills, college..."
+                        className="input-minimal flex-1 py-2.5 px-3 rounded-xl text-sm focus:outline-none"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}
+                      />
+                      <button
+                        onClick={send}
+                        disabled={loading || !input.trim()}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center focus-ring"
+                        style={{
+                          background: input.trim() ? 'linear-gradient(135deg, var(--primary-from), var(--primary-to))' : 'rgba(255,255,255,0.03)',
+                          border: input.trim() ? 'none' : '1px solid var(--border)',
+                          opacity: loading ? 0.5 : 1,
+                        }}
+                      >
+                        <ArrowRight size={16} style={{ color: input.trim() ? '#1a0c00' : 'var(--text-subtle)' }} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                    <div className="text-[10px] mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>Powered by Forge AI · Built for ITHS</div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        };
+
+        /* ── State reducer ──────────────────────────────────────────────────────────── */
+        const initialState = {
+          xp: 720,
+          xpToNext: 1000,
+          level: 4,
+          streak: 7,
+          currentWeek: 2,
+          roadmap: MOCK_ROADMAP,
+          wins: MOCK_RECENT_WINS,
+        };
+
+        const reducer = (state, action) => {
+          if (action.type === "complete") {
+            // Mark current week done, advance current to next, add XP, level up if needed
+            const idx = state.roadmap.findIndex((w) => w.status === "current");
+            if (idx === -1) return state;
+            const newRoadmap = state.roadmap.map((w, i) => {
+              if (i === idx) return { ...w, status: "done" };
+              if (i === idx + 1) return { ...w, status: "current" };
+              return w;
+            });
+            let xp = state.xp + action.xp;
+            let level = state.level;
+            let xpToNext = state.xpToNext;
+            while (xp >= xpToNext) {
+              xp -= xpToNext;
+              level += 1;
+              xpToNext = Math.round(xpToNext * 1.25);
+            }
+            const newWin = {
+              title: state.roadmap[idx].task,
+              xp: action.xp,
+              when: "just now",
+            };
+            return {
+              ...state,
+              xp,
+              xpToNext,
+              level,
+              streak: state.streak + 1,
+              currentWeek: state.currentWeek + 1,
+              roadmap: newRoadmap,
+              wins: [newWin, ...state.wins].slice(0, 3),
+            };
+          }
+          if (action.type === "set_goal") {
+            return { ...state, goal: action.goal };
+          }
+          return state;
+        };
+
+        /* ── Auth / localStorage persistence ────────────────────────────────────── */
+        const DB = {
+          getUsers: () => JSON.parse(localStorage.getItem('forge_users') || '{}'),
+          saveUsers: (u) => localStorage.setItem('forge_users', JSON.stringify(u)),
+          getSession: () => JSON.parse(localStorage.getItem('forge_session') || 'null'),
+          saveSession: (s) => localStorage.setItem('forge_session', JSON.stringify(s)),
+          clearSession: () => localStorage.removeItem('forge_session'),
+          signup: (name, email, pw) => {
+            const users = DB.getUsers();
+            if (users[email]) return { error: 'Account already exists' };
+            users[email] = { name, email, password: pw, createdAt: Date.now() };
+            DB.saveUsers(users);
+            return { ok: true, user: { name, email } };
+          },
+          login: (email, pw) => {
+            const users = DB.getUsers();
+            const u = users[email];
+            if (!u) return { error: 'No account found with that email' };
+            if (u.password !== pw) return { error: 'Incorrect password' };
+            return { ok: true, user: { name: u.name, email } };
+          },
+          saveData: (email, data) => {
+            const all = JSON.parse(localStorage.getItem('forge_data') || '{}');
+            all[email] = { ...data, savedAt: Date.now() };
+            localStorage.setItem('forge_data', JSON.stringify(all));
+          },
+          loadData: (email) => {
+            const all = JSON.parse(localStorage.getItem('forge_data') || '{}');
+            return all[email] || null;
+          },
+        };
+
+        /* ── Login / Signup Screen ──────────────────────────────────────────────── */
+        const AuthScreen = ({ onAuth }) => {
+          const [mode, setMode] = useState('login');
+          const [name, setName] = useState('');
+          const [email, setEmail] = useState('');
+          const [pw, setPw] = useState('');
+          const [error, setError] = useState('');
+          const ref = useRef(null);
+          useEffect(() => { ref.current?.focus(); }, [mode]);
+
+          const submit = (e) => {
+            e.preventDefault();
+            setError('');
+            if (mode === 'signup') {
+              if (!name.trim() || !email.trim() || !pw.trim()) return setError('All fields are required');
+              if (pw.length < 4) return setError('Password must be at least 4 characters');
+              const r = DB.signup(name.trim(), email.trim().toLowerCase(), pw);
+              if (r.error) return setError(r.error);
+              DB.saveSession(r.user);
+              onAuth(r.user);
+            } else {
+              if (!email.trim() || !pw.trim()) return setError('Email and password required');
+              const r = DB.login(email.trim().toLowerCase(), pw);
+              if (r.error) return setError(r.error);
+              DB.saveSession(r.user);
+              onAuth(r.user);
+            }
+          };
+
+          return (
+            <div className="min-h-screen flex items-center justify-center px-6 py-20">
+              <div className="w-full max-w-md animate-fade-up">
+                <div className="text-center mb-10">
+                  <div className="inline-flex mb-5">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--primary-from), var(--primary-to))', boxShadow: '0 12px 36px -8px rgba(255,107,44,0.6)' }}>
+                      <Hammer size={28} style={{ color: '#1a0c00' }} strokeWidth={2.4} />
+                    </div>
+                  </div>
+                  <h1 className="font-display font-semibold tracking-tight mb-2" style={{ fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.05 }}>
+                    {mode === 'login' ? 'Welcome back' : 'Create your account'}
+                  </h1>
+                  <p style={{ color: 'var(--text-muted)' }} className="text-sm">
+                    {mode === 'login' ? 'Sign in to continue forging your career' : 'Start your 90-day career transformation'}
+                  </p>
+                </div>
+
+                <form onSubmit={submit} className="glass top-rule rounded-3xl p-7 space-y-4">
+                  {mode === 'signup' && (
+                    <div>
+                      <label className="text-xs uppercase tracking-widest block mb-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>Full Name</label>
+                      <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
+                        className="input-minimal w-full py-3 px-4 rounded-xl text-sm focus:outline-none"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }} />
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs uppercase tracking-widest block mb-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>Email</label>
+                    <input ref={ref} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@iths.edu"
+                      className="input-minimal w-full py-3 px-4 rounded-xl text-sm focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }} />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-widest block mb-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>Password</label>
+                    <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••"
+                      className="input-minimal w-full py-3 px-4 rounded-xl text-sm focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }} />
+                  </div>
+                  {error && (
+                    <div className="text-sm px-4 py-2.5 rounded-xl" style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.2)', color: '#F43F5E' }}>{error}</div>
+                  )}
+                  <PrimaryButton type="submit" large className="w-full">
+                    {mode === 'login' ? 'Sign in' : 'Create account'} <ArrowRight size={16} strokeWidth={2.5} />
+                  </PrimaryButton>
+                </form>
+                <p className="text-center text-sm mt-6" style={{ color: 'var(--text-muted)' }}>
+                  {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                  <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
+                    className="font-medium hover:underline" style={{ color: '#FFC169' }}>
+                    {mode === 'login' ? 'Sign up' : 'Sign in'}
+                  </button>
+                </p>
+              </div>
+            </div>
+          );
+        };
+
+        /* ── Main App ───────────────────────────────────────────────────────────── */
+        function App() {
+          const [user, setUser] = useState(null);
+          const [screen, setScreen] = useState("landing");
+          const [state, setState] = useState(initialState);
+          const [goal, setGoal] = useState("");
+          const [loaded, setLoaded] = useState(false);
+
+          useEffect(() => {
+            const session = DB.getSession();
+            if (session) {
+              setUser(session);
+              const saved = DB.loadData(session.email);
+              if (saved && saved.goal) {
+                setState(saved.state || initialState);
+                setGoal(saved.goal);
+                setScreen('dashboard');
+              } else {
+                setScreen('onboarding');
+              }
+            }
+            setLoaded(true);
+          }, []);
+
+          useEffect(() => {
+            if (user && goal && screen === 'dashboard') {
+              DB.saveData(user.email, { state, goal });
+            }
+          }, [state, goal, user, screen]);
+
+          const dispatch = useCallback((action) => {
+            setState((s) => reducer(s, action));
+          }, []);
+
+          const navigate = (next) => {
+            setScreen(next);
+            if (next !== "landing") window.scrollTo({ top: 0, behavior: "smooth" });
+          };
+
+          const startFlow = () => navigate(user ? "onboarding" : "auth");
+
+          const onAuth = (u) => {
+            setUser(u);
+            const saved = DB.loadData(u.email);
+            if (saved && saved.goal) {
+              setState(saved.state || initialState);
+              setGoal(saved.goal);
+              navigate('dashboard');
+            } else {
+              navigate('onboarding');
+            }
+          };
+
+          const signOut = () => {
+            DB.clearSession();
+            setUser(null);
+            setState(initialState);
+            setGoal('');
+            navigate('landing');
+          };
+
+          const onGoalSubmit = (g) => { setGoal(g); navigate("forging"); };
+          const onForgeDone = (generatedRoadmap) => {
+            if (generatedRoadmap && Array.isArray(generatedRoadmap)) {
+              setState(s => ({
+                ...s,
+                roadmap: generatedRoadmap,
+                currentWeek: 1,
+                wins: [
+                  { title: 'Set your goal: "' + goal + '"', xp: 50, when: 'just now' },
+                  ...s.wins.slice(0, 2),
+                ],
+                xp: s.xp + 50,
+              }));
+            }
+            navigate("dashboard");
+          };
+
+          if (!loaded) return null;
+
+          return (
+            <>
+              <GlobalStyles />
+              <AmbientBackground />
+              <div key={screen} className="animate-fade-in">
+                {screen === "landing" && <Landing onStart={startFlow} />}
+                {screen === "auth" && <AuthScreen onAuth={onAuth} />}
+                {screen === "onboarding" && <Onboarding onSubmit={onGoalSubmit} />}
+                {screen === "forging" && <ForgingLoader goal={goal} onDone={onForgeDone} />}
+                {screen === "dashboard" && (
+                  <Dashboard state={state} dispatch={dispatch} onNav={navigate} goal={goal} user={user} signOut={signOut} />
+                )}
+                {screen === "portfolio" && <Portfolio onNav={navigate} state={state} />}
+                {screen === "roadmap" && <Roadmap onNav={navigate} state={state} />}
+                {screen === "leaderboard" && <Leaderboard onNav={navigate} state={state} />}
+              </div>
+              {screen !== 'landing' && screen !== 'onboarding' && screen !== 'forging' && screen !== 'auth' && <ChatPanel />}
+            </>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
