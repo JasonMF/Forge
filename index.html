@@ -76,8 +76,10 @@
                   generationConfig: { temperature: 0.8, maxOutputTokens: 1024 }
                 })
               });
+              if (!res.ok) throw new Error('Gemini API returned ' + res.status);
               const data = await res.json();
-              return data.candidates?.[0]?.content?.parts?.[0]?.text || 'AI response unavailable.';
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) return text;
             } catch (e) { console.warn('Gemini error:', e); }
           }
           if (AI_CONFIG.openaiKey) {
@@ -91,8 +93,10 @@
                   max_tokens: 1024, temperature: 0.8
                 })
               });
+              if (!res.ok) throw new Error('OpenAI API returned ' + res.status);
               const data = await res.json();
-              return data.choices?.[0]?.message?.content || 'AI response unavailable.';
+              const text = data.choices?.[0]?.message?.content;
+              if (text) return text;
             } catch (e) { console.warn('OpenAI error:', e); }
           }
           return smartMockResponse(prompt);
@@ -124,10 +128,17 @@
             ];
             return bullets[Math.floor(Math.random() * bullets.length)];
           }
-          if (p.includes('react') || p.includes('learn') || p.includes('skill')) return 'For an ITHS student, I recommend starting with React fundamentals — build 3 small projects before moving to Next.js. Focus on component thinking, state management with hooks, and API integration. Your ITHS coursework gives you a strong foundation to build on.';
-          if (p.includes('college') || p.includes('university')) return 'Top CS programs like Cornell Tech, NYU Tandon, and Stony Brook look for students with real projects, not just grades. Build 2-3 polished portfolio projects, contribute to open source, and write about what you learned. Your ITHS background in IT already sets you apart.';
-          if (p.includes('internship') || p.includes('job')) return 'Start with local NYC startups — they love hungry ITHS students. Check AngelList, LinkedIn, and Handshake. Lead with your projects, not your GPA. A deployed app is worth more than a 4.0 to most tech companies.';
-          return 'Great question! As an ITHS student, you have a unique advantage — you\'re already in a tech-focused environment. Focus on building real projects, contributing to open source, and connecting with the NYC tech community. Every line of code you ship is a step closer to your goal.';
+          if (p.includes('react') || p.includes('javascript') || p.includes('js')) return 'For an ITHS student, I recommend starting with React fundamentals — build 3 small projects before moving to Next.js. Focus on component thinking, state management with hooks, and API integration. Your ITHS coursework gives you a strong foundation to build on.';
+          if (p.includes('python') || p.includes('learn') || p.includes('skill') || p.includes('language') || p.includes('code') || p.includes('programming')) return 'Start with Python for its versatility — it covers web dev (Django/Flask), data science, and automation. Then add JavaScript for frontend work. As an ITHS student, try building a project that combines both: a Python API backend with a React frontend.';
+          if (p.includes('college') || p.includes('university') || p.includes('cornell') || p.includes('nyu')) return 'Top CS programs like Cornell Tech, NYU Tandon, and Stony Brook look for students with real projects, not just grades. Build 2-3 polished portfolio projects, contribute to open source, and write about what you learned. Your ITHS background in IT already sets you apart.';
+          if (p.includes('internship') || p.includes('job') || p.includes('career') || p.includes('work')) return 'Start with local NYC startups — they love hungry ITHS students. Check AngelList, LinkedIn, and Handshake. Lead with your projects, not your GPA. A deployed app is worth more than a 4.0 to most tech companies.';
+          if (p.includes('web') || p.includes('html') || p.includes('css') || p.includes('frontend') || p.includes('front')) return 'For web development, master the fundamentals first: HTML5 semantic elements, CSS Grid/Flexbox, and vanilla JavaScript. Then move to React. Build a portfolio site, a weather app, and a todo app — those three projects teach you 80% of what you need.';
+          if (p.includes('ai') || p.includes('machine') || p.includes('data')) return 'AI/ML is a great career path! Start with Python, then learn NumPy and Pandas for data manipulation. Try the free Andrew Ng course on Coursera. For a quick win, build a project using the Gemini or OpenAI API — you can create something impressive in a weekend.';
+          if (p.includes('cyber') || p.includes('security') || p.includes('hack')) return 'Cybersecurity is in huge demand! Start with CompTIA Security+ study materials, practice on TryHackMe or HackTheBox, and learn Linux fundamentals. NYC has amazing cybersecurity meetups — check out OWASP NYC chapter. Your ITHS network skills are a perfect foundation.';
+          if (p.includes('design') || p.includes('ui') || p.includes('ux')) return 'UI/UX design is a fantastic skill to pair with development. Start with Figma (free!), study Apple and Google design guidelines, and rebuild existing apps to practice. Check out "Don\'t Make Me Think" by Steve Krug — it\'s the best intro to UX.';
+          if (p.includes('game') || p.includes('unity') || p.includes('gaming')) return 'Game development is awesome! Start with Unity (C#) or Godot (free, open-source). Build 3 small games before attempting anything big: a pong clone, a platformer, and a simple RPG. Each one teaches critical concepts. Check out Brackeys on YouTube.';
+          if (p.includes('help') || p.includes('what') || p.includes('how') || p.includes('should')) return 'I\'m here to help! I can give you advice on: 🎯 Career paths in tech, 📚 Learning roadmaps for any skill, 💼 Internship and job search strategies, 🏫 College prep and applications, 💻 Project ideas and portfolio tips. What area interests you most?';
+          return 'Great question! As an ITHS student, you have a unique advantage — you\'re already in a tech-focused environment. Focus on building real projects, contributing to open source, and connecting with the NYC tech community. Every line of code you ship is a step closer to your goal. What specific area would you like to explore?';
         };
 
         const generateRoadmap = async (goal) => {
@@ -171,9 +182,32 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
         };
 
         const chatWithMentor = async (message, history = []) => {
-          const context = history.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
-          const prompt = context ? `Previous conversation:\n${context}\n\nStudent: ${message}` : message;
-          return await callAI(prompt);
+          const sys = 'You are Forge AI, a career mentor for ITHS students in NYC. Give specific, actionable advice about tech careers, college prep, portfolio building, and skill development. Be encouraging but direct. Keep responses concise (2-4 sentences).';
+          // Try Gemini API directly for chat
+          if (AI_CONFIG.geminiKey) {
+            try {
+              const chatHistory = history.slice(-6).map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+              }));
+              const res = await fetch(`${AI_CONFIG.geminiUrl}?key=${AI_CONFIG.geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: sys }] },
+                  contents: [...chatHistory, { role: 'user', parts: [{ text: message }] }],
+                  generationConfig: { temperature: 0.8, maxOutputTokens: 512 }
+                })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) return text;
+              }
+            } catch (e) { console.warn('Chat Gemini error:', e); }
+          }
+          // Smart fallback using ONLY the user's message for accurate keyword matching
+          return smartMockResponse(message);
         };
 
         /* ── Global styles, fonts, keyframes ────────────────────────────────────────── */
@@ -756,7 +790,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               <div className="hidden md:flex items-center gap-8 text-sm" style={{ color: "var(--text-muted)" }}>
                 <a className="hover:text-white transition-colors" href="#features">Features</a>
                 <a className="hover:text-white transition-colors" href="#how">How it works</a>
-                <a className="hover:text-white transition-colors" href="#pricing">Students</a>
+                <a className="hover:text-white transition-colors" href="#students">Students</a>
               </div>
               <PrimaryButton onClick={onCta}>
                 Start your forge <ArrowRight size={15} strokeWidth={2.5} />
@@ -988,7 +1022,7 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
               </section>
 
               {/* Students Wall — dynamic */}
-              <section className="px-6 pb-32">
+              <section id="students" className="px-6 pb-32">
                 <div className="max-w-6xl mx-auto">
                   <div className="text-center mb-14">
                     <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>Our community</span>
@@ -1429,7 +1463,10 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
 
               <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <p className="text-sm max-w-md" style={{ color: "var(--text-muted)" }}>
-                  Don't perfect it. Ship it. You can always sharpen it next week.
+                  {task.week <= 3 ? "Start small. Ship fast. You can always sharpen it next week." :
+                   task.week <= 6 ? "You're building momentum. Keep shipping." :
+                   task.week <= 9 ? "Over halfway there. Your skills are compounding." :
+                   "Final stretch. You've come so far — finish strong."}
                 </p>
                 <PrimaryButton large glow onClick={onComplete}>
                   Complete quest <ArrowRight size={16} strokeWidth={2.5} />
@@ -1955,15 +1992,53 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
                   )}
 
                   {!loading && !bullet && savedBullets.length === 0 && (
-                    <div className="mt-6 flex flex-col items-center text-center py-10">
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{
-                        background: "radial-gradient(circle at 30% 30%, rgba(255,107,44,0.18), rgba(255,107,44,0.03))", border: "1px solid rgba(255,138,61,0.18)",
-                      }}>
-                        <Github size={26} style={{ color: "#FFC169" }} />
+                    <div className="mt-8">
+                      {/* Demo Section */}
+                      <div className="mb-6 flex items-center gap-3">
+                        <h3 className="font-display font-semibold text-lg tracking-tight">See it in action</h3>
+                        <span className="text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-full font-semibold" style={{
+                          background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.25)', color: '#818CF8', letterSpacing: '0.15em'
+                        }}>Demo</span>
                       </div>
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        Paste a GitHub URL above to generate your first bullet.
-                      </p>
+                      <div className="space-y-3">
+                        {[
+                          {
+                            repo: 'github.com/student/weather-dashboard',
+                            bullet: 'Built a real-time weather dashboard using React and the OpenWeatherMap API, featuring 5-day forecasts, geolocation-based defaults, and dynamic SVG weather animations. Deployed on Vercel with 98/100 Lighthouse performance score.',
+                            tech: 'React · API · Vercel'
+                          },
+                          {
+                            repo: 'github.com/student/task-flow-app',
+                            bullet: 'Developed a collaborative project management tool with drag-and-drop Kanban boards, real-time WebSocket sync, and JWT authentication. Implemented CI/CD pipeline via GitHub Actions with automated testing achieving 89% code coverage.',
+                            tech: 'Node.js · WebSocket · PostgreSQL'
+                          },
+                          {
+                            repo: 'github.com/student/ai-study-buddy',
+                            bullet: 'Architected an AI-powered study companion that generates personalized flashcards and quiz questions from uploaded notes using the Gemini API. Features spaced repetition algorithms and progress analytics. 150+ active student users.',
+                            tech: 'Python · Gemini API · Firebase'
+                          },
+                        ].map((demo, i) => (
+                          <div key={i} className="glass top-rule rounded-2xl p-5 opacity-80" style={{ animation: `fadeUp 0.5s cubic-bezier(.2,.8,.2,1) ${0.08 * i + 0.1}s both` }}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <Sparkles size={13} style={{ color: '#818CF8' }} />
+                              <span className="text-xs uppercase tracking-widest" style={{ color: '#818CF8', letterSpacing: '0.15em' }}>Example output</span>
+                            </div>
+                            <p className="text-sm leading-relaxed mb-3">{demo.bullet}</p>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-subtle)' }}>
+                                <Github size={11} />
+                                <span>{demo.repo}</span>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text-subtle)' }}>{demo.tech}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-6 text-center">
+                        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                          <span className="grad-text font-medium">Try it yourself</span> — paste any GitHub URL above to generate your first bullet.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2318,13 +2393,13 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
 
         /* ── State reducer ──────────────────────────────────────────────────────────── */
         const initialState = {
-          xp: 720,
-          xpToNext: 1000,
-          level: 4,
-          streak: 7,
-          currentWeek: 2,
+          xp: 0,
+          xpToNext: 200,
+          level: 1,
+          streak: 0,
+          currentWeek: 1,
           roadmap: MOCK_ROADMAP,
-          wins: MOCK_RECENT_WINS,
+          wins: [],
         };
 
         const reducer = (state, action) => {
@@ -2549,16 +2624,17 @@ Important: Output ONLY the JSON array. No markdown, no explanation, no code fenc
           const onGoalSubmit = (g) => { setGoal(g); navigate("forging"); };
           const onForgeDone = (generatedRoadmap) => {
             if (generatedRoadmap && Array.isArray(generatedRoadmap)) {
-              setState(s => ({
-                ...s,
-                roadmap: generatedRoadmap,
+              setState({
+                xp: 50,
+                xpToNext: 200,
+                level: 1,
+                streak: 1,
                 currentWeek: 1,
+                roadmap: generatedRoadmap,
                 wins: [
                   { title: 'Set your goal: "' + goal + '"', xp: 50, when: 'just now' },
-                  ...s.wins.slice(0, 2),
                 ],
-                xp: s.xp + 50,
-              }));
+              });
             }
             navigate("dashboard");
           };
