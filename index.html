@@ -658,6 +658,132 @@ No markdown, no fences, no prose.`;
               100% { box-shadow: 0 0 0 18px rgba(255,138,61,0); }
             }
 
+            /* Aurora wave — sweeping gradient behind hero */
+            @keyframes auroraShift {
+              0% { background-position: 0% 50%; opacity: 0.6; }
+              25% { opacity: 0.8; }
+              50% { background-position: 100% 50%; opacity: 0.6; }
+              75% { opacity: 0.85; }
+              100% { background-position: 0% 50%; opacity: 0.6; }
+            }
+
+            /* Floating rings */
+            @keyframes ringFloat {
+              0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+              25% { transform: translate3d(12px, -18px, 0) rotate(90deg) scale(1.05); }
+              50% { transform: translate3d(-8px, -28px, 0) rotate(180deg) scale(0.97); }
+              75% { transform: translate3d(16px, -10px, 0) rotate(270deg) scale(1.03); }
+            }
+
+            /* Scroll reveal */
+            @keyframes revealUp {
+              from { opacity: 0; transform: translate3d(0, 60px, 0) scale(0.97); filter: blur(6px); }
+              to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
+            }
+            @keyframes revealLeft {
+              from { opacity: 0; transform: translate3d(-50px, 0, 0); filter: blur(4px); }
+              to { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
+            }
+            @keyframes revealScale {
+              from { opacity: 0; transform: scale(0.85); filter: blur(8px); }
+              to { opacity: 1; transform: scale(1); filter: blur(0); }
+            }
+
+            /* Typewriter cursor blink */
+            @keyframes cursorBlink {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0; }
+            }
+
+            /* Pulsing glow ring for decorative elements */
+            @keyframes ringPulse {
+              0%, 100% { opacity: 0.3; transform: scale(1); }
+              50% { opacity: 0.6; transform: scale(1.08); }
+            }
+
+            /* Gradient border spin for cards */
+            @keyframes borderSpin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+
+            /* Subtle bounce for CTAs */
+            @keyframes subtleBounce {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-6px); }
+            }
+
+            /* Scroll-reveal visibility classes */
+            .reveal-hidden {
+              opacity: 0;
+              transform: translate3d(0, 60px, 0) scale(0.97);
+              filter: blur(6px);
+              transition: none;
+            }
+            .reveal-visible {
+              animation: revealUp 0.9s cubic-bezier(.2,.8,.2,1) forwards;
+            }
+            .reveal-left-hidden {
+              opacity: 0;
+              transform: translate3d(-50px, 0, 0);
+              filter: blur(4px);
+            }
+            .reveal-left-visible {
+              animation: revealLeft 0.8s cubic-bezier(.2,.8,.2,1) forwards;
+            }
+            .reveal-scale-hidden {
+              opacity: 0;
+              transform: scale(0.85);
+              filter: blur(8px);
+            }
+            .reveal-scale-visible {
+              animation: revealScale 0.9s cubic-bezier(.2,.8,.2,1) forwards;
+            }
+
+            /* Magnetic button hover glow */
+            .magnetic-btn {
+              position: relative;
+              transition: transform 180ms cubic-bezier(.2,.8,.2,1);
+            }
+            .magnetic-btn::after {
+              content: '';
+              position: absolute;
+              inset: -4px;
+              border-radius: inherit;
+              background: linear-gradient(135deg, rgba(255,107,44,0.3), rgba(255,184,0,0.2));
+              filter: blur(16px);
+              opacity: 0;
+              transition: opacity 300ms;
+              pointer-events: none;
+              z-index: -1;
+            }
+            .magnetic-btn:hover::after { opacity: 1; }
+
+            /* Animated gradient border on hover */
+            .animated-border {
+              position: relative;
+              overflow: hidden;
+            }
+            .animated-border::before {
+              content: '';
+              position: absolute;
+              inset: -2px;
+              background: conic-gradient(from 0deg, var(--primary-from), var(--primary-to), var(--secondary), var(--primary-from));
+              border-radius: inherit;
+              animation: borderSpin 4s linear infinite;
+              opacity: 0;
+              transition: opacity 400ms;
+              z-index: -1;
+            }
+            .animated-border:hover::before { opacity: 0.6; }
+
+            /* Parallax tilt card */
+            .tilt-card {
+              transform-style: preserve-3d;
+              perspective: 1000px;
+              transition: transform 300ms cubic-bezier(.2,.8,.2,1);
+            }
+
             /* Words stagger for hero headline */
             .word-stagger > span {
               display: inline-block;
@@ -951,6 +1077,220 @@ No markdown, no fences, no prose.`;
           </button>
         );
 
+        /* ── Scroll Reveal Hook ───────────────────────────────────────────────────── */
+        const useScrollReveal = (options = {}) => {
+          const ref = useRef(null);
+          const [isVisible, setVisible] = useState(false);
+          useEffect(() => {
+            const el = ref.current;
+            if (!el) return;
+            const observer = new IntersectionObserver(
+              ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.unobserve(el); } },
+              { threshold: options.threshold || 0.15, rootMargin: options.rootMargin || '0px 0px -40px 0px' }
+            );
+            observer.observe(el);
+            return () => observer.disconnect();
+          }, []);
+          return [ref, isVisible];
+        };
+
+        /* ── ScrollReveal wrapper component ─────────────────────────────────────── */
+        const ScrollReveal = ({ children, delay = 0, type = 'up', className = '' }) => {
+          const [ref, isVisible] = useScrollReveal();
+          const classMap = { up: 'reveal', left: 'reveal-left', scale: 'reveal-scale' };
+          const base = classMap[type] || 'reveal';
+          return (
+            <div
+              ref={ref}
+              className={`${isVisible ? `${base}-visible` : `${base}-hidden`} ${className}`}
+              style={{ animationDelay: `${delay}s`, animationFillMode: 'both' }}
+            >
+              {children}
+            </div>
+          );
+        };
+
+        /* ── Hero Particle Ember Canvas ──────────────────────────────────────────── */
+        const HeroParticles = () => {
+          const canvasRef = useRef(null);
+          useEffect(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            let W, H;
+            const resize = () => {
+              W = canvas.offsetWidth * dpr;
+              H = canvas.offsetHeight * dpr;
+              canvas.width = W;
+              canvas.height = H;
+            };
+            resize();
+            window.addEventListener('resize', resize);
+
+            const particles = [];
+            const PARTICLE_COUNT = 60;
+            const colors = [
+              'rgba(255,107,44,0.6)', 'rgba(255,138,61,0.5)', 'rgba(255,184,0,0.4)',
+              'rgba(255,209,102,0.35)', 'rgba(129,140,248,0.3)'
+            ];
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+              particles.push({
+                x: Math.random() * W,
+                y: H + Math.random() * 200,
+                vx: (Math.random() - 0.5) * 0.4 * dpr,
+                vy: -(0.3 + Math.random() * 0.8) * dpr,
+                size: (1 + Math.random() * 3) * dpr,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                life: Math.random(),
+                decay: 0.001 + Math.random() * 0.003,
+                wobbleAmp: 0.5 + Math.random() * 1.5,
+                wobbleFreq: 0.01 + Math.random() * 0.02,
+                t: Math.random() * 1000,
+              });
+            }
+
+            let raf;
+            const draw = () => {
+              ctx.clearRect(0, 0, W, H);
+              for (const p of particles) {
+                p.t++;
+                p.x += p.vx + Math.sin(p.t * p.wobbleFreq) * p.wobbleAmp;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0 || p.y < -20) {
+                  p.x = Math.random() * W;
+                  p.y = H + Math.random() * 100;
+                  p.life = 0.7 + Math.random() * 0.3;
+                  p.t = Math.random() * 1000;
+                }
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.life * 0.8);
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 8 * dpr;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+              }
+              raf = requestAnimationFrame(draw);
+            };
+            raf = requestAnimationFrame(draw);
+            return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+          }, []);
+
+          return (
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 pointer-events-none z-0"
+              style={{ width: '100%', height: '100%', opacity: 0.9 }}
+            />
+          );
+        };
+
+        /* ── Aurora Wave Background ─────────────────────────────────────────────── */
+        const AuroraWave = () => (
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" style={{ opacity: 0.5 }}>
+            <div
+              className="absolute"
+              style={{
+                top: '-20%', left: '-10%', right: '-10%', height: '80%',
+                background: 'linear-gradient(90deg, rgba(255,107,44,0.08) 0%, rgba(255,184,0,0.12) 20%, rgba(129,140,248,0.1) 40%, rgba(255,138,61,0.08) 60%, rgba(255,184,0,0.1) 80%, rgba(129,140,248,0.08) 100%)',
+                backgroundSize: '300% 100%',
+                animation: 'auroraShift 12s ease-in-out infinite',
+                filter: 'blur(60px)',
+                borderRadius: '50%',
+              }}
+            />
+            <div
+              className="absolute"
+              style={{
+                bottom: '-30%', left: '10%', right: '10%', height: '60%',
+                background: 'linear-gradient(90deg, rgba(129,140,248,0.06) 0%, rgba(255,107,44,0.08) 50%, rgba(255,184,0,0.06) 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'auroraShift 18s ease-in-out infinite reverse',
+                filter: 'blur(80px)',
+                borderRadius: '50%',
+              }}
+            />
+          </div>
+        );
+
+        /* ── Floating Glowing Rings ─────────────────────────────────────────────── */
+        const FloatingRings = () => (
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+            {[
+              { top: '8%', left: '5%', size: 120, delay: '0s', dur: '16s', color: 'rgba(255,107,44,0.12)' },
+              { top: '60%', right: '8%', size: 90, delay: '4s', dur: '20s', color: 'rgba(129,140,248,0.10)' },
+              { top: '30%', right: '20%', size: 60, delay: '8s', dur: '14s', color: 'rgba(255,184,0,0.08)' },
+              { bottom: '15%', left: '15%', size: 80, delay: '2s', dur: '22s', color: 'rgba(255,138,61,0.09)' },
+            ].map((ring, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full"
+                style={{
+                  top: ring.top, left: ring.left, right: ring.right, bottom: ring.bottom,
+                  width: ring.size, height: ring.size,
+                  border: `1.5px solid ${ring.color}`,
+                  boxShadow: `0 0 20px ${ring.color}, inset 0 0 20px ${ring.color}`,
+                  animation: `ringFloat ${ring.dur} ease-in-out infinite, ringPulse 6s ease-in-out infinite`,
+                  animationDelay: ring.delay,
+                }}
+              />
+            ))}
+          </div>
+        );
+
+        /* ── Animated Counter (counts up on scroll) ────────────────────────────── */
+        const AnimatedStatCounter = ({ value, suffix = '' }) => {
+          const [ref, isVisible] = useScrollReveal({ threshold: 0.3 });
+          const [display, setDisplay] = useState('0');
+          useEffect(() => {
+            if (!isVisible) return;
+            const num = parseInt(value);
+            if (isNaN(num)) { setDisplay(value); return; }
+            const dur = 1800;
+            const start = performance.now();
+            const tick = (now) => {
+              const t = Math.min(1, (now - start) / dur);
+              const e = 1 - Math.pow(1 - t, 4); // easeOutQuart
+              setDisplay(String(Math.round(num * e)));
+              if (t < 1) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          }, [isVisible, value]);
+          return <span ref={ref}>{display}{suffix}</span>;
+        };
+
+        /* ── Typewriter Text ──────────────────────────────────────────────────── */
+        const TypewriterText = ({ text, delay = 900, speed = 35 }) => {
+          const [displayed, setDisplayed] = useState('');
+          const [showCursor, setShowCursor] = useState(true);
+          useEffect(() => {
+            let i = 0;
+            const timeout = setTimeout(() => {
+              const interval = setInterval(() => {
+                i++;
+                setDisplayed(text.slice(0, i));
+                if (i >= text.length) {
+                  clearInterval(interval);
+                  setTimeout(() => setShowCursor(false), 2000);
+                }
+              }, speed);
+              return () => clearInterval(interval);
+            }, delay);
+            return () => clearTimeout(timeout);
+          }, [text, delay, speed]);
+          return (
+            <span>
+              {displayed}
+              {showCursor && <span style={{ animation: 'cursorBlink 0.8s step-end infinite', color: 'var(--primary-mid)' }}>|</span>}
+            </span>
+          );
+        };
+
         /* ── Animated number count-up ───────────────────────────────────────────────── */
         const useCountUp = (target, duration = 900) => {
           const [val, setVal] = useState(target);
@@ -1211,7 +1551,10 @@ No markdown, no fences, no prose.`;
                 onMouseMove={onMouseMove}
                 className="relative pt-40 pb-24 px-6"
               >
-                <div className="max-w-6xl mx-auto text-center">
+                <HeroParticles />
+                <AuroraWave />
+                <FloatingRings />
+                <div className="max-w-6xl mx-auto text-center relative z-10">
                   {/* Eyebrow */}
                   <div
                     className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 animate-fade-in"
@@ -1230,11 +1573,14 @@ No markdown, no fences, no prose.`;
                   <HeroHeadline />
 
                   <p
-                    className="mt-8 max-w-2xl mx-auto text-lg animate-fade-up"
-                    style={{ color: "var(--text-muted)", animationDelay: "0.9s", animationFillMode: "both" }}
+                    className="mt-8 max-w-2xl mx-auto text-lg"
+                    style={{ color: "var(--text-muted)", minHeight: '3.5em' }}
                   >
-                    Forge turns your goal into a 90-day system. AI-powered roadmaps, a portfolio that
-                    writes itself, and the discipline of a streak. Built by ITHS students, for ITHS students.
+                    <TypewriterText
+                      text="Forge turns your goal into a 90-day system. AI-powered roadmaps, a portfolio that writes itself, and the discipline of a streak. Built by ITHS students, for ITHS students."
+                      delay={1200}
+                      speed={22}
+                    />
                   </p>
 
                   <div
@@ -1242,6 +1588,7 @@ No markdown, no fences, no prose.`;
                     style={{ animationDelay: "1.05s", animationFillMode: "both" }}
                   >
                     <div
+                      className="magnetic-btn"
                       style={{
                         transform: `translate3d(${tilt.x}px, ${tilt.y}px, 0)`,
                         transition: "transform 250ms cubic-bezier(.2,.8,.2,1)",
@@ -1278,27 +1625,33 @@ No markdown, no fences, no prose.`;
               <section id="features" className="px-6 pb-32">
                 <div className="max-w-6xl mx-auto">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <FeatureCard
-                      Icon={Compass}
-                      title="Your roadmap, in 30 seconds"
-                      body="Tell Forge your goal. Get a 12-week plan with weekly quests calibrated to where you are right now."
-                      delay={1.2}
-                      accent="linear-gradient(135deg, #FF6B2C, #FFB800)"
-                    />
-                    <FeatureCard
-                      Icon={Sparkles}
-                      title="Portfolio that writes itself"
-                      body="Paste a GitHub URL. Forge turns your README into a sharp, recruiter-ready bullet you can drop into your resume."
-                      delay={1.32}
-                      accent="linear-gradient(135deg, #FFB800, #FF8A3D)"
-                    />
-                    <FeatureCard
-                      Icon={Flame}
-                      title="A streak that means something"
-                      body="Show up daily. Watch your XP, level, and skill tree compound. Real progress, not vanity metrics."
-                      delay={1.44}
-                      accent="linear-gradient(135deg, #FF8A3D, #FFC169)"
-                    />
+                    <ScrollReveal delay={0}>
+                      <FeatureCard
+                        Icon={Compass}
+                        title="Your roadmap, in 30 seconds"
+                        body="Tell Forge your goal. Get a 12-week plan with weekly quests calibrated to where you are right now."
+                        delay={0}
+                        accent="linear-gradient(135deg, #FF6B2C, #FFB800)"
+                      />
+                    </ScrollReveal>
+                    <ScrollReveal delay={0.15}>
+                      <FeatureCard
+                        Icon={Sparkles}
+                        title="Portfolio that writes itself"
+                        body="Paste a GitHub URL. Forge turns your README into a sharp, recruiter-ready bullet you can drop into your resume."
+                        delay={0}
+                        accent="linear-gradient(135deg, #FFB800, #FF8A3D)"
+                      />
+                    </ScrollReveal>
+                    <ScrollReveal delay={0.3}>
+                      <FeatureCard
+                        Icon={Flame}
+                        title="A streak that means something"
+                        body="Show up daily. Watch your XP, level, and skill tree compound. Real progress, not vanity metrics."
+                        delay={0}
+                        accent="linear-gradient(135deg, #FF8A3D, #FFC169)"
+                      />
+                    </ScrollReveal>
                   </div>
                 </div>
               </section>
@@ -1306,26 +1659,30 @@ No markdown, no fences, no prose.`;
               {/* How It Works */}
               <section id="how" className="px-6 pb-32">
                 <div className="max-w-6xl mx-auto">
-                  <div className="text-center mb-16">
-                    <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>How it works</span>
-                    <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
-                      From <span className="grad-text">lost</span> to <span className="grad-text">launched</span> in 90 days
-                    </h2>
-                  </div>
+                  <ScrollReveal>
+                    <div className="text-center mb-16">
+                      <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>How it works</span>
+                      <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
+                        From <span className="grad-text">lost</span> to <span className="grad-text">launched</span> in 90 days
+                      </h2>
+                    </div>
+                  </ScrollReveal>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {[
                       { num: '01', title: 'Set your goal', desc: 'Tell Forge what you want — Cornell CS, a startup internship, or your first freelance gig. Be specific.', icon: Target },
                       { num: '02', title: 'AI forges your roadmap', desc: 'Our AI analyzes your goal and generates a personalized 12-week plan with weekly quests calibrated to your level.', icon: Sparkles },
                       { num: '03', title: 'Ship, earn, level up', desc: 'Complete quests to earn XP, maintain your streak, build your portfolio, and watch your skill tree grow.', icon: Rocket },
                     ].map((step, i) => (
-                      <div key={step.num} className="relative glass glass-hover top-rule rounded-2xl p-8 text-center" style={{ animation: `fadeUp 0.7s cubic-bezier(.2,.8,.2,1) ${0.1 * i + 0.1}s both` }}>
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', border: '1px solid rgba(255,138,61,0.25)' }}>
-                          <step.icon size={28} style={{ color: '#FFC169' }} strokeWidth={1.8} />
+                      <ScrollReveal key={step.num} delay={i * 0.18} type="scale">
+                        <div className="relative glass glass-hover top-rule rounded-2xl p-8 text-center">
+                          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6" style={{ background: 'linear-gradient(135deg, rgba(255,107,44,0.2), rgba(255,184,0,0.1))', border: '1px solid rgba(255,138,61,0.25)' }}>
+                            <step.icon size={28} style={{ color: '#FFC169' }} strokeWidth={1.8} />
+                          </div>
+                          <div className="text-xs font-semibold tracking-widest mb-3 grad-text" style={{ letterSpacing: '0.2em' }}>{step.num}</div>
+                          <h3 className="font-display text-xl font-semibold tracking-tight mb-3">{step.title}</h3>
+                          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>{step.desc}</p>
                         </div>
-                        <div className="text-xs font-semibold tracking-widest mb-3 grad-text" style={{ letterSpacing: '0.2em' }}>{step.num}</div>
-                        <h3 className="font-display text-xl font-semibold tracking-tight mb-3">{step.title}</h3>
-                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>{step.desc}</p>
-                      </div>
+                      </ScrollReveal>
                     ))}
                   </div>
                 </div>
@@ -1333,32 +1690,48 @@ No markdown, no fences, no prose.`;
 
               {/* Stats Banner */}
               <section className="px-6 pb-32">
-                <div className="max-w-6xl mx-auto glass top-rule rounded-3xl p-10">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                    {[
-                      { value: String(Object.keys(JSON.parse(localStorage.getItem('forge_users') || '{}')).length + 60) + '+', label: 'ITHS Students' },
-                      { value: '12', label: 'Week Roadmaps' },
-                      { value: 'AI', label: 'Powered Mentoring' },
-                      { value: '∞', label: 'Career Paths' },
-                    ].map((s, i) => (
-                      <div key={s.label} style={{ animation: `fadeUp 0.6s cubic-bezier(.2,.8,.2,1) ${0.1 * i}s both` }}>
-                        <div className="font-display font-semibold grad-text" style={{ fontSize: 'clamp(36px, 5vw, 56px)', lineHeight: 1, letterSpacing: '-0.04em' }}>{s.value}</div>
-                        <div className="text-xs uppercase tracking-widest mt-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>{s.label}</div>
-                      </div>
-                    ))}
+                <ScrollReveal type="scale">
+                  <div className="max-w-6xl mx-auto glass top-rule rounded-3xl p-10 relative overflow-hidden">
+                    {/* Animated gradient border glow */}
+                    <div className="absolute inset-0 pointer-events-none rounded-3xl" style={{
+                      padding: 1,
+                      background: 'linear-gradient(135deg, rgba(255,107,44,0.3), rgba(255,184,0,0.2), rgba(129,140,248,0.2), rgba(255,107,44,0.3))',
+                      WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                      WebkitMaskComposite: 'xor', maskComposite: 'exclude',
+                      animation: 'borderPulse 4s ease-in-out infinite',
+                    }} />
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                      {[
+                        { value: String(Object.keys(JSON.parse(localStorage.getItem('forge_users') || '{}')).length + 60), suffix: '+', label: 'ITHS Students' },
+                        { value: '12', suffix: '', label: 'Week Roadmaps' },
+                        { value: 'AI', suffix: '', label: 'Powered Mentoring', isText: true },
+                        { value: '∞', suffix: '', label: 'Career Paths', isText: true },
+                      ].map((s, i) => (
+                        <ScrollReveal key={s.label} delay={i * 0.12}>
+                          <div>
+                            <div className="font-display font-semibold grad-text" style={{ fontSize: 'clamp(36px, 5vw, 56px)', lineHeight: 1, letterSpacing: '-0.04em' }}>
+                              {s.isText ? s.value : <AnimatedStatCounter value={s.value} suffix={s.suffix} />}
+                            </div>
+                            <div className="text-xs uppercase tracking-widest mt-2" style={{ color: 'var(--text-subtle)', letterSpacing: '0.18em' }}>{s.label}</div>
+                          </div>
+                        </ScrollReveal>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </ScrollReveal>
               </section>
 
               {/* Students Wall — dynamic */}
               <section id="students" className="px-6 pb-32">
                 <div className="max-w-6xl mx-auto">
-                  <div className="text-center mb-14">
-                    <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>Our community</span>
-                    <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }}>
-                      ITHS students forging their futures
-                    </h2>
-                  </div>
+                  <ScrollReveal>
+                    <div className="text-center mb-14">
+                      <span className="text-xs uppercase tracking-widest" style={{ color: '#FFC169', letterSpacing: '0.2em' }}>Our community</span>
+                      <h2 className="font-display font-semibold tracking-tight mt-3" style={{ fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }}>
+                        ITHS students forging their futures
+                      </h2>
+                    </div>
+                  </ScrollReveal>
                   {(() => {
                     const seedStudents = [
                       { name: 'Alex M.', goal: 'Land a software engineering internship', joined: '2 weeks ago' },
@@ -1403,18 +1776,23 @@ No markdown, no fences, no prose.`;
               </section>
 
               {/* CTA Section */}
-              <section className="px-6 pb-32">
-                <div className="max-w-4xl mx-auto text-center">
-                  <h2 className="font-display font-semibold tracking-tight mb-4" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
-                    Ready to <span className="grad-text-shimmer">forge your future</span>?
-                  </h2>
-                  <p className="text-lg mb-8 max-w-xl mx-auto" style={{ color: 'var(--text-muted)' }}>
-                    Join your ITHS classmates. Set one goal. Let AI build your roadmap. Start shipping.
-                  </p>
-                  <PrimaryButton large glow onClick={onStart}>
-                    Start your forge <ArrowRight size={17} strokeWidth={2.5} />
-                  </PrimaryButton>
-                </div>
+              <section className="px-6 pb-32 relative">
+                <FloatingRings />
+                <ScrollReveal>
+                  <div className="max-w-4xl mx-auto text-center relative z-10">
+                    <h2 className="font-display font-semibold tracking-tight mb-4" style={{ fontSize: 'clamp(32px, 5vw, 52px)', lineHeight: 1.05 }}>
+                      Ready to <span className="grad-text-shimmer">forge your future</span>?
+                    </h2>
+                    <p className="text-lg mb-8 max-w-xl mx-auto" style={{ color: 'var(--text-muted)' }}>
+                      Join your ITHS classmates. Set one goal. Let AI build your roadmap. Start shipping.
+                    </p>
+                    <div className="magnetic-btn inline-block">
+                      <PrimaryButton large glow onClick={onStart}>
+                        Start your forge <ArrowRight size={17} strokeWidth={2.5} />
+                      </PrimaryButton>
+                    </div>
+                  </div>
+                </ScrollReveal>
               </section>
 
               {/* Footer */}
